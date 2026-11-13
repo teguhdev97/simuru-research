@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import base64
+import hashlib
+import hmac
 import imaplib
 import os
 import re
 import smtplib
 import ssl
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from email import message_from_bytes
 from email.header import decode_header
@@ -37,6 +40,7 @@ class MailboxSettings:
     smtp_port: int
     sender_allowlist: tuple[str, ...]
     subject_keywords: tuple[str, ...]
+    mailbox_passwords: dict[str, str] = field(default_factory=dict)
 
     @classmethod
     def from_env(cls) -> MailboxSettings:
@@ -192,7 +196,9 @@ class ImapOTPReader:
                     raise MailboxError("IMAP login succeeded, but INBOX could not be selected.")
                 client.logout()
         except (imaplib.IMAP4.error, OSError) as exc:
-            raise MailboxError(f"IMAP connection/authentication failed: {type(exc).__name__}") from exc
+            raise MailboxError(
+                f"IMAP connection/authentication failed: {type(exc).__name__}"
+            ) from exc
 
     def wait_for_otp(
         self,
