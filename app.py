@@ -583,18 +583,10 @@ with mailbox_tab:
                             },
                         )
                         reader = ImapOTPReader(mailbox_settings)
-                        # A bounded connectivity check using a short OTP wait window.
-                        reader.wait_for_otp(
-                            mailbox_for_otp,
-                            since=__import__("datetime").datetime.now(
-                                __import__("datetime").UTC
-                            ),
-                            timeout_seconds=3,
-                            poll_interval=1,
-                        )
+                        reader.check_connection(mailbox_for_otp)
                         st.session_state["mailbox_workflow_alert"] = {
                             "kind": "success",
-                            "message": "IMAP terhubung dan OTP baru berhasil dibaca.",
+                            "message": "IMAP login berhasil dan folder INBOX dapat dibuka.",
                         }
                     except MailboxError as exc:
                         message = str(exc)
