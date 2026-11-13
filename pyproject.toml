@@ -1,7 +1,7 @@
 [project]
 name = "simuru-research"
-version = "0.2.0"
-description = "Local Simuru API connectivity research and sandbox QA dashboard"
+version = "0.3.0"
+description = "SIMURU read-only API explorer and local sandbox QA dashboard"
 readme = "README.md"
 authors = [
     { name = "Teguh" }
