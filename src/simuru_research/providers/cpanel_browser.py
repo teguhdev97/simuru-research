@@ -326,6 +326,21 @@ class CpanelBrowserMailboxManager:
             raise MailboxError("Format data Email::list_pops tidak dikenali.")
         return data
 
+    def list_domain_mailboxes(self) -> list[str]:
+        """Return mailbox addresses on the configured QA domain after UAPI authentication."""
+        with self._attached_browser() as (_, _, pages):
+            page, _ = self._find_authenticated_page(pages)
+            if page is None:
+                raise MailboxError("Sesi cPanel belum terverifikasi.")
+            rows = self._list_mailboxes(page)
+            return sorted({
+                str(row.get("email", "")).strip().lower()
+                for row in rows
+                if isinstance(row, dict)
+                and str(row.get("email", "")).strip().lower().endswith("@" + self.domain)
+                and str(row.get("email", "")).strip().lower().split("@", 1)[0].startswith(self.prefix)
+            })
+
     @staticmethod
     def _generate_mailbox_password() -> str:
         """Generate a unique password when no shared QA password was configured."""
