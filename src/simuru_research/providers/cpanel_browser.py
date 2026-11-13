@@ -169,7 +169,7 @@ class CpanelBrowserMailboxManager:
                 return {"connected": False, "message": "Buka halaman cPanel port 2083."}
             probe = page.evaluate(
                 """async (domain) => {
-                  const match = location.pathname.match(/^\\/cpsess[^/]+/);
+                  const match = location.pathname.match(/^\/cpsess[^/]+/);
                   if (!match) return {ok: false, reason: 'cPanel session prefix not found'};
                   const endpoint = match[0] + '/execute/Email/list_pops?domain=' + encodeURIComponent(domain);
                   const response = await fetch(endpoint, {credentials: 'same-origin'});
@@ -197,7 +197,7 @@ class CpanelBrowserMailboxManager:
 
         existing = page.evaluate(
             """async (domain) => {
-              const match = location.pathname.match(/^\\/cpsess[^/]+/);
+              const match = location.pathname.match(/^\/cpsess[^/]+/);
               if (!match) throw new Error('cPanel session prefix not found in URL');
               const endpoint = match[0] + '/execute/Email/list_pops?domain=' + encodeURIComponent(domain);
               const response = await fetch(endpoint, {credentials: 'same-origin'});
@@ -233,7 +233,7 @@ class CpanelBrowserMailboxManager:
                     quota: String(quota),
                     send_welcome_email: '0'
                   });
-                  const match = location.pathname.match(/^\\/cpsess[^/]+/);
+                  const match = location.pathname.match(/^\/cpsess[^/]+/);
                   if (!match) throw new Error('cPanel session prefix not found in URL');
                   const response = await fetch(match[0] + '/execute/Email/add_pop?' + params.toString(), {
                     method: 'GET',
