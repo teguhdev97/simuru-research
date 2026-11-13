@@ -4,7 +4,6 @@ import shutil
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from urllib.parse import urlparse
 
 from simuru_research.engine.browser_form_qa import _validate_target_url
 
@@ -34,7 +33,6 @@ def _captcha_may_be_present(driver: object) -> bool:
             if driver.find_elements("css selector", selector):
                 return True
         except Exception:
-            # Detection is advisory; the user can always inspect the open browser.
             continue
     return False
 
