@@ -283,7 +283,7 @@ class CpanelBrowserMailboxManager:
         return data
 
     def create_five(self) -> list[dict[str, str]]:
-        """Create exactly five unique mailboxes and verify each with a fresh list call."""
+        """Create exactly five unique mailboxes, preserving partial results safely."""
         with self._attached_browser() as (_, _, pages):
             page, diagnostics = self._find_authenticated_page(pages)
             if page is None:
@@ -307,50 +307,90 @@ class CpanelBrowserMailboxManager:
                 local_part = f"{self.prefix}-{batch}-{index:02d}"
                 address = f"{local_part}@{self.domain}"
                 if address.lower() in current:
-                    raise MailboxError(f"Alamat {address} sudah ada; tidak ada akun yang ditimpa.")
+                    created.append({
+                        "email": address,
+                        "password": "",
+                        "status": "failed",
+                        "error": "Alamat sudah ada; tidak ada akun yang ditimpa.",
+                    })
+                    break
+
                 password = "".join(secrets.choice(alphabet) for _ in range(24)) + "aA9!"
-                payload = page.evaluate(
-                    """async ({localPart, domain, password, quota}) => {
-                      const match = location.pathname.match(/^\\/cpsess[^/]+/);
-                      if (!match) throw new Error('Prefix sesi cPanel tidak ditemukan.');
-                      const params = new URLSearchParams({
-                        email: localPart,
-                        domain,
-                        password,
-                        quota: String(quota),
-                        send_welcome_email: '0'
-                      });
-                      const response = await fetch(
-                        match[0] + '/execute/Email/add_pop?' + params.toString(),
-                        {method: 'GET', credentials: 'same-origin', cache: 'no-store'}
-                      );
-                      if (!response.ok) throw new Error('add_pop HTTP ' + response.status);
-                      return await response.json();
-                    }""",
-                    {
-                        "localPart": local_part,
-                        "domain": self.domain,
-                        "password": password,
-                        "quota": self.quota_mb,
-                    },
-                )
-                if not self._uapi_succeeded(payload):
-                    details = payload.get("result", {}).get("errors") or payload.get("result", {}).get("messages") or "cPanel menolak permintaan."
-                    raise MailboxError(
-                        f"Gagal membuat {address} setelah {len(created)} mailbox: {details}"
+                record = {
+                    "email": address,
+                    "password": password,
+                    "status": "pending",
+                    "error": "",
+                }
+                created.append(record)
+                try:
+                    payload = page.evaluate(
+                        """async ({localPart, domain, password, quota}) => {
+                          const match = location.pathname.match(/^\\/cpsess[^/]+/);
+                          if (!match) throw new Error('Prefix sesi cPanel tidak ditemukan.');
+                          const params = new URLSearchParams({
+                            email: localPart,
+                            domain,
+                            password,
+                            quota: String(quota),
+                            send_welcome_email: '0'
+                          });
+                          const response = await fetch(
+                            match[0] + '/execute/Email/add_pop?' + params.toString(),
+                            {method: 'GET', credentials: 'same-origin', cache: 'no-store'}
+                          );
+                          if (!response.ok) throw new Error('add_pop HTTP ' + response.status);
+                          return await response.json();
+                        }""",
+                        {
+                            "localPart": local_part,
+                            "domain": self.domain,
+                            "password": password,
+                            "quota": self.quota_mb,
+                        },
                     )
-                created.append({"email": address, "password": password, "status": "created"})
+                    if self._uapi_succeeded(payload):
+                        record["status"] = "created_pending_verification"
+                    else:
+                        result = payload.get("result", {})
+                        details = result.get("errors") or result.get("messages") or "cPanel menolak permintaan."
+                        record["status"] = "failed"
+                        record["error"] = str(details)
+                        break
+                except Exception as exc:
+                    record["status"] = "unknown"
+                    record["error"] = (
+                        f"Respons add_pop tidak dapat dipastikan: {type(exc).__name__}. "
+                        "Alamat akan dicek ulang melalui list_pops."
+                    )
+                    break
                 time.sleep(0.25)
 
-            verified = self._list_mailboxes(page)
-            verified_addresses = {
-                str(item.get("email", "")).lower()
-                for item in verified
-                if isinstance(item, dict)
-            }
-            for item in created:
-                if item["email"].lower() not in verified_addresses:
-                    item["status"] = "created_unverified"
+            try:
+                verified = self._list_mailboxes(page)
+                verified_addresses = {
+                    str(item.get("email", "")).lower()
+                    for item in verified
+                    if isinstance(item, dict)
+                }
+                for record in created:
+                    if record["email"].lower() in verified_addresses:
+                        record["status"] = "created"
+                        record["error"] = ""
+                    elif record["status"] != "failed":
+                        record["status"] = "failed"
+                        record["error"] = (
+                            record["error"]
+                            or "Alamat tidak ditemukan pada verifikasi list_pops."
+                        )
+            except Exception as exc:
+                for record in created:
+                    if record["status"] != "failed":
+                        record["status"] = "unverified"
+                        record["error"] = (
+                            f"Mailbox belum dapat diverifikasi: {type(exc).__name__}. "
+                            "Jangan menganggap batch ini berhasil."
+                        )
             return created
 
     def close(self) -> dict[str, str]:
