@@ -43,7 +43,7 @@ def test_verification_codes_are_single_use(tmp_path) -> None:
     email = "single-use@example.test"
 
     service.register_user(
-        username="single-use",
+        username="single_use",
         email=email,
         phone="+12025550102",
         password=PASSWORD,
@@ -60,7 +60,7 @@ def test_login_rejects_wrong_password_and_unverified_user(tmp_path) -> None:
     email = "login-check@example.test"
 
     service.register_user(
-        username="login-check",
+        username="login_check",
         email=email,
         phone="+12025550103",
         password=PASSWORD,
