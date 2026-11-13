@@ -221,7 +221,7 @@ class CpanelBrowserMailboxManager:
                   result.reason = response.redirected
                     ? 'UAPI dialihkan ke halaman lain; sesi mungkin kedaluwarsa.'
                     : (result.apiErrors || result.apiMessages || result.apiWarnings
-                      || 'HTTP berhasil, tetapi envelope JSON tidak berisi status sukses UAPI. Lihat topLevelKeys dan resultKeys.');  # noqa: E501
+                      || 'HTTP berhasil, tetapi envelope JSON tidak berisi status sukses UAPI. Lihat topLevelKeys dan resultKeys.'); // noqa: E501
                 }
                 return result;
               } catch (error) {
@@ -263,7 +263,7 @@ class CpanelBrowserMailboxManager:
                         "diagnostics": diagnostics,
                     }
                 if not any(self._is_cpanel_page(p) for p in pages):
-                    message = "Browser aktif, tetapi tab cPanel tidak ditemukan. Klik Connect cPanel." // noqa: E501
+                    message = "Browser aktif, tetapi tab cPanel tidak ditemukan. Klik Connect cPanel."  # noqa: E501
                 elif diagnostics:
                     last = diagnostics[-1]
                     message = (
@@ -326,7 +326,7 @@ class CpanelBrowserMailboxManager:
         )
         normalized = self._uapi_result(payload)
         if not self._uapi_succeeded(payload):
-            details = normalized.get("errors") or normalized.get("messages") or "Tidak ada detail UAPI." // noqa: E501
+            details = normalized.get("errors") or normalized.get("messages") or "Tidak ada detail UAPI."  # noqa: E501
             raise MailboxError(f"Email::list_pops gagal: {details}")
         data = normalized.get("data") or []
         if not isinstance(data, list):
@@ -434,7 +434,7 @@ class CpanelBrowserMailboxManager:
                         record["status"] = "created_pending_verification"
                     else:
                         result = payload.get("result", {})
-                        details = result.get("errors") or result.get("messages") or "cPanel menolak permintaan." // noqa: E501
+                        details = result.get("errors") or result.get("messages") or "cPanel menolak permintaan."  # noqa: E501
                         record["status"] = "failed"
                         record["error"] = str(details)
                         break
@@ -610,7 +610,7 @@ class CpanelBrowserMailboxManager:
                         page.goto(logout_target, wait_until="domcontentloaded", timeout=15000)
                         page.wait_for_timeout(500)
                         body_text = page.locator("body").inner_text(timeout=3000).lower()
-                        logout_confirmed = "login to cpanel" in body_text or "log in to cpanel" in body_text // noqa: E501
+                        logout_confirmed = "login to cpanel" in body_text or "log in to cpanel" in body_text  # noqa: E501
                 context.clear_cookies()
                 browser.close()
         except Exception:
