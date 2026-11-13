@@ -62,7 +62,7 @@ class LocalAuthQAService:
                     user_id TEXT PRIMARY KEY,
                     username TEXT NOT NULL UNIQUE COLLATE NOCASE,
                     email TEXT NOT NULL UNIQUE COLLATE NOCASE,
-                    phone TEXT NOT NULL UNIQUE,
+                    phone TEXT NOT NULL,
                     password_hash TEXT NOT NULL,
                     email_verified INTEGER NOT NULL DEFAULT 0,
                     phone_verified INTEGER NOT NULL DEFAULT 0,
