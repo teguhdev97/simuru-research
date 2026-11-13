@@ -142,23 +142,29 @@ The dashboard includes:
 ## Website Automation (visual configuration)
 
 The **Website Automation** tab provides a form-based profile manager and a read-only
-Playwright form inspector. Enter a registration page URL and click **Inspect Website &
-Auto-detect Selectors** to discover visible inputs, labels, placeholders, submit controls,
-and obvious Google sign-in buttons. Suggested CSS selectors are copied into the profile
-form for review and can be edited before saving. The inspector never submits a form or
-performs a login.
-Save, select, preview, or delete profiles in the dashboard.
+Playwright form inspector. Enter an authorized registration page URL and click
+**Inspect Website & Auto-detect Selectors** to discover visible inputs, labels,
+placeholders, submit controls, and Google sign-in buttons. Suggested CSS selectors are
+copied into the profile form for review and can be edited before saving.
 
-Profiles are stored locally in `data/website_profiles.json`, which is covered by
-`.gitignore`. No manual JSON editing is required. Remote sites must use HTTPS.
-A profile must explicitly confirm ownership or authorization before it can be considered
-eligible for future QA execution.
+For a website you own or are explicitly authorized to test, the Mailbox Manager also
+provides a bounded email-registration fallback. When Google OAuth is not detected or
+the Google control cannot be clicked, SIMURU can fill and submit the registration form
+sequentially with the five generated QA mailbox addresses. It generates a separate
+temporary website password for each identity and offers a local CSV export. Passwords
+are not stored in SQLite. A `submitted` result means the form submit action completed;
+the target application's email verification, OTP, CAPTCHA, and account-creation
+result still need to be checked. This feature does not bypass those checks.
 
-This initial release is a **configuration manager only**: it does not submit external
-registration forms, create Google Accounts, or automate sign-in to third-party services.
+Save, select, preview, or delete website profiles in the dashboard. Profiles are stored
+locally in `data/website_profiles.json`, which is covered by `.gitignore`. Remote sites
+must use HTTPS. The operator must explicitly confirm ownership or authorization before
+starting the five-identity email flow.
+
 OAuth client credentials and secrets are not collected by this profile form. For an
 application you own, configure its OAuth client and redirect URI separately in Google
-Auth Platform and keep client secrets in local secret storage.
+Auth Platform and keep client secrets in local secret storage. Google sign-in, consent,
+CAPTCHA, and MFA remain manual-supervised.
 
 ## Team Account Registry
 
@@ -312,10 +318,12 @@ simuru-research/
 
 ## Local five-mailbox QA
 
-The Registration QA dashboard can create exactly five real mailboxes per run on a
-domain you control. It uses cPanel UAPI `Email::add_pop`, assigns distinct
-deterministic mailbox passwords derived from a local master secret, and stores the
-five addresses in SQLite run history. It does not submit website registration forms.
+The Mailbox Manager can create exactly five real mailboxes per run on a
+domain you control. It uses the local cPanel browser session and UAPI, assigns distinct
+random mailbox passwords when no shared QA password is configured, and stores those
+mailbox passwords in Windows Credential Manager. The five addresses and non-secret
+operation results are shown in the dashboard. Website registration is a separate,
+explicitly authorized QA action described in the Website Automation section.
 
 See [docs/local-mailbox-qa.md](docs/local-mailbox-qa.md) for cPanel API token setup,
 Windows configuration, mailbox naming, IMAP settings, and sender-allowlisted OTP
