@@ -23,3 +23,14 @@ def test_cpanel_browser_manager_rejects_invalid_quota():
         assert "quota" in str(exc).lower()
     else:
         raise AssertionError("Invalid quota must be rejected")
+
+
+
+def test_uapi_succeeded_accepts_numeric_and_string_status():
+    assert CpanelBrowserMailboxManager._uapi_succeeded({"result": {"status": 1}})
+    assert CpanelBrowserMailboxManager._uapi_succeeded({"result": {"status": "1"}})
+
+
+def test_uapi_succeeded_rejects_failed_or_missing_status():
+    assert not CpanelBrowserMailboxManager._uapi_succeeded({"result": {"status": 0}})
+    assert not CpanelBrowserMailboxManager._uapi_succeeded({"result": {}})
