@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from dataclasses import asdict
 
 from simuru_research.engine.browser_form_qa import inspect_registration_form
 
@@ -20,14 +21,7 @@ def main() -> None:
         timeout_seconds=args.timeout,
         headless=args.headless,
     )
-    print(json.dumps(result.__dict__ if hasattr(result, "__dict__") else {
-        "target_url": result.target_url,
-        "title": result.title,
-        "username_field_found": result.username_field_found,
-        "email_field_found": result.email_field_found,
-        "password_field_found": result.password_field_found,
-        "submit_button_found": result.submit_button_found,
-    }, indent=2))
+    print(json.dumps(asdict(result), indent=2))
 
 
 if __name__ == "__main__":
