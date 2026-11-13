@@ -105,3 +105,32 @@ def test_reset_mailbox_passwords_rejects_other_domains():
         assert "domain" in str(exc).lower()
     else:
         raise AssertionError("Password reset must be restricted to the owned QA domain")
+
+
+
+def test_oauth_target_allows_localhost_http():
+    assert CpanelBrowserMailboxManager._validate_oauth_target_url(
+        "http://localhost:3000/register"
+    ) == "http://localhost:3000/register"
+
+
+def test_oauth_target_rejects_remote_http():
+    try:
+        CpanelBrowserMailboxManager._validate_oauth_target_url(
+            "http://example.com/register"
+        )
+    except Exception as exc:
+        assert "HTTPS" in str(exc)
+    else:
+        raise AssertionError("Remote HTTP targets must be rejected")
+
+
+def test_oauth_target_rejects_embedded_credentials():
+    try:
+        CpanelBrowserMailboxManager._validate_oauth_target_url(
+            "https://user:pass@example.com/register"
+        )
+    except Exception as exc:
+        assert "credentials" in str(exc).lower()
+    else:
+        raise AssertionError("Credentials in URLs must be rejected")
