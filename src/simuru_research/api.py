@@ -14,7 +14,7 @@ auth_service = LocalAuthQAService(settings.database_path)
 
 app = FastAPI(
     title="Simuru Local Registration QA API",
-    version="0.5.0",
+    version="0.6.0",
     description=(
         "Loopback-only QA API for testing registration, email/SMS verification, "
         "and login in the team's own local application. It does not connect to Instagram."
