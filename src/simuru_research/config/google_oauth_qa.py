@@ -40,6 +40,7 @@ def validate_google_oauth_qa_config(config: dict[str, object]) -> dict[str, obje
         "redirect_uri": redirect_uri,
         "emails": emails,
         "scopes": ["openid", "email", "profile"],
+        "test_users_confirmed": bool(config.get("test_users_confirmed", False)),
         "client_secret_configured": False,
     }
 
