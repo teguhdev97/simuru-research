@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 
+import pytest
+
 from simuru_research.providers.cpanel_browser import CpanelBrowserMailboxManager
 from simuru_research.providers.mailbox import MailboxError
 
@@ -113,27 +115,19 @@ def test_email_fallback_rejects_non_qa_mailboxes_before_opening_browser():
     ]
     selectors = {"email": "#email", "password": "#password", "submit": "button"}
 
-    try:
+    with pytest.raises(MailboxError, match="generated QA mailboxes"):
         browser_manager.run_email_registration_batch(
             "https://staging.example.test/register",
             selectors,
             identities,
         )
-    except MailboxError as exc:
-        assert "generated QA mailboxes" in str(exc)
-    else:
-        raise AssertionError("Expected non-QA mailbox to be rejected.")
 
 
 def test_email_fallback_requires_exactly_five_identities():
     browser_manager = manager()
-    try:
+    with pytest.raises(MailboxError, match="exactly five"):
         browser_manager.run_email_registration_batch(
             "https://staging.example.test/register",
             {"email": "#email", "password": "#password", "submit": "button"},
             [],
         )
-    except MailboxError as exc:
-        assert "exactly five" in str(exc)
-    else:
-        raise AssertionError("Expected incorrect batch size to be rejected.")
