@@ -1,18 +1,28 @@
 from __future__ import annotations
 
 import secrets
+import socket
 import string
+import subprocess
 import time
 from pathlib import Path
 from typing import Any
+from urllib.error import URLError
+from urllib.request import urlopen
 
-from playwright.sync_api import BrowserContext, Page, Playwright, sync_playwright
+from playwright.sync_api import Browser, BrowserContext, Page, Playwright, sync_playwright
 
 from simuru_research.providers.mailbox import MailboxError
 
 
 class CpanelBrowserMailboxManager:
-    """Use the user's interactive cPanel browser session without exporting cookies/tokens."""
+    """Attach Playwright to a persistent local Chromium process.
+
+    Streamlit reruns its script after each button click, so a Playwright object
+    must not be kept across Streamlit script threads. Chromium runs independently
+    with a local CDP endpoint; each Streamlit run creates a fresh Playwright client
+    and attaches to that same browser process.
+    """
 
     def __init__(
         self,
@@ -22,13 +32,17 @@ class CpanelBrowserMailboxManager:
         prefix: str = "qa",
         quota_mb: int = 50,
         profile_dir: str = "data/cpanel-browser-profile",
+        debug_port: int = 9222,
     ) -> None:
         self.cpanel_url = cpanel_url.rstrip("/")
         self.domain = domain.lower()
         self.prefix = prefix
         self.quota_mb = quota_mb
         self.profile_dir = Path(profile_dir)
+        self.debug_port = debug_port
+        self._process: subprocess.Popen | None = None
         self._playwright: Playwright | None = None
+        self._browser: Browser | None = None
         self._context: BrowserContext | None = None
         self._page: Page | None = None
 
@@ -40,43 +54,137 @@ class CpanelBrowserMailboxManager:
             raise MailboxError("Mailbox prefix may contain only letters, numbers, and hyphens.")
         if not 1 <= self.quota_mb <= 5000:
             raise MailboxError("Mailbox quota must be between 1 and 5000 MB.")
+        if not 1024 <= self.debug_port <= 65535:
+            raise MailboxError("Invalid local Chromium debugging port.")
+
+    @property
+    def _cdp_url(self) -> str:
+        return f"http://127.0.0.1:{self.debug_port}"
+
+    def _cdp_ready(self) -> bool:
+        try:
+            with urlopen(f"{self._cdp_url}/json/version", timeout=1) as response:
+                return response.status == 200
+        except (OSError, URLError):
+            return False
+
+    def _attach(self) -> None:
+        if self._browser is not None and self._browser.is_connected():
+            contexts = self._browser.contexts
+            if contexts:
+                self._context = contexts[0]
+                pages = self._context.pages
+                self._page = pages[0] if pages else self._context.new_page()
+                return
+
+        self._playwright = sync_playwright().start()
+        try:
+            self._browser = self._playwright.chromium.connect_over_cdp(
+                self._cdp_url, timeout=10_000
+            )
+        except Exception:
+            self._playwright.stop()
+            self._playwright = None
+            raise
+        contexts = self._browser.contexts
+        self._context = contexts[0] if contexts else self._browser.new_context()
+        pages = self._context.pages
+        self._page = pages[0] if pages else self._context.new_page()
 
     def connect(self) -> str:
-        """Open a visible persistent browser; the user completes login manually."""
-        if self._context is None:
-            self.profile_dir.mkdir(parents=True, exist_ok=True)
-            self._playwright = sync_playwright().start()
-            self._context = self._playwright.chromium.launch_persistent_context(
-                user_data_dir=str(self.profile_dir.resolve()),
-                headless=False,
-                viewport={"width": 1440, "height": 960},
-            )
-            self._page = self._context.pages[0] if self._context.pages else self._context.new_page()
+        """Start/attach to visible Chromium; user signs in manually."""
+        self.profile_dir.mkdir(parents=True, exist_ok=True)
+        if not self._cdp_ready():
+            executable = Path(sync_playwright().start().chromium.executable_path)
+            # Stop the short-lived discovery driver before launching Chromium itself.
+            probe = sync_playwright().start()
+            executable = Path(probe.chromium.executable_path)
+            probe.stop()
+            if not executable.exists():
+                raise MailboxError(
+                    "Chromium belum terpasang. Jalankan: uv run playwright install chromium"
+                )
+            command = [
+                str(executable),
+                f"--remote-debugging-port={self.debug_port}",
+                f"--user-data-dir={self.profile_dir.resolve()}",
+                "--no-first-run",
+                "--no-default-browser-check",
+                "--disable-background-networking",
+                "--new-window",
+                self.cpanel_url,
+            ]
+            try:
+                self._process = subprocess.Popen(
+                    command,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    stdin=subprocess.DEVNULL,
+                )
+            except OSError as exc:
+                raise MailboxError(f"Gagal membuka Chromium: {type(exc).__name__}") from exc
+            for _ in range(40):
+                if self._cdp_ready():
+                    break
+                if self._process.poll() is not None:
+                    raise MailboxError(
+                        "Chromium berhenti saat startup. Tutup semua jendela Chromium "
+                        "yang memakai profil SIMURU lalu coba lagi."
+                    )
+                time.sleep(0.25)
+            if not self._cdp_ready():
+                raise MailboxError(
+                    "Chromium tidak membuka koneksi lokal. Pastikan port 9222 tidak dipakai "
+                    "aplikasi lain, lalu coba lagi."
+                )
+
+        self._attach()
         assert self._page is not None
-        self._page.goto(self.cpanel_url, wait_until="domcontentloaded")
+        if self._page.url in {"about:blank", "chrome://newtab/"}:
+            self._page.goto(self.cpanel_url, wait_until="domcontentloaded")
         return self._page.url
 
+    def _ensure_attached(self) -> Page:
+        if not self._cdp_ready():
+            raise MailboxError(
+                "Browser cPanel belum aktif. Klik Connect cPanel terlebih dahulu."
+            )
+        self._attach()
+        assert self._page is not None
+        return self._page
+
     def session_status(self) -> dict[str, Any]:
-        if self._page is None or self._page.is_closed():
-            return {"connected": False, "message": "Browser belum dibuka."}
-        return self._page.evaluate(
-            """() => ({
-              url: location.origin + location.pathname,
-              loggedIn: !document.body.innerText.toLowerCase().includes('login to cpanel')
-            })"""
-        ) | {"connected": True}
+        try:
+            page = self._ensure_attached()
+            origin = page.evaluate("() => location.origin")
+            if not origin.startswith("https://") or ":2083" not in origin:
+                return {"connected": False, "message": "Buka halaman cPanel port 2083."}
+            probe = page.evaluate(
+                """async (domain) => {
+                  const response = await fetch('/execute/Email/list_pops?domain=' + encodeURIComponent(domain), {
+                    credentials: 'same-origin'
+                  });
+                  if (!response.ok) return {ok: false, status: response.status};
+                  const payload = await response.json();
+                  return {ok: payload?.result?.status === 1};
+                }""",
+                self.domain,
+            )
+            return {
+                "connected": bool(probe.get("ok")),
+                "message": "Sesi cPanel aktif." if probe.get("ok") else "Login cPanel diperlukan.",
+            }
+        except Exception as exc:
+            return {"connected": False, "message": f"Sesi browser tidak tersedia: {type(exc).__name__}"}
 
     def create_eight(self) -> list[dict[str, str]]:
-        """Create exactly eight unique mailboxes using same-origin UAPI fetch."""
-        if self._page is None or self._page.is_closed():
-            raise MailboxError("Klik Connect cPanel dan login terlebih dahulu.")
-        page = self._page
-        origin = page.evaluate("() => location.origin")
-        if not origin.startswith("https://") or ":2083" not in origin:
-            raise MailboxError("Browser tidak berada pada cPanel HTTPS port 2083.")
+        """Create exactly eight unique mailboxes using the authenticated cPanel session."""
+        page = self._ensure_attached()
         status = self.session_status()
         if not status.get("connected"):
-            raise MailboxError("Sesi browser cPanel belum tersedia.")
+            raise MailboxError(
+                "Sesi cPanel belum login. Klik Connect cPanel dan selesaikan login manual."
+            )
 
         existing = page.evaluate(
             """async (domain) => {
@@ -90,7 +198,7 @@ class CpanelBrowserMailboxManager:
         )
         result = existing.get("result", {})
         if result.get("status") != 1:
-            raise MailboxError("cPanel list_pops gagal. Pastikan sudah login ke akun hosting.")
+            raise MailboxError("cPanel list_pops gagal. Pastikan login ke akun hosting.")
         current = {
             str(item.get("email", "")).lower()
             for item in (result.get("data") or [])
@@ -161,10 +269,10 @@ class CpanelBrowserMailboxManager:
         return created
 
     def close(self) -> None:
-        if self._context is not None:
-            self._context.close()
+        """Disconnect this Streamlit run without killing the persistent browser."""
         if self._playwright is not None:
             self._playwright.stop()
-        self._context = None
         self._playwright = None
+        self._browser = None
+        self._context = None
         self._page = None
