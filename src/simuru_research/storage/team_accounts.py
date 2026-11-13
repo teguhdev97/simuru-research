@@ -122,7 +122,9 @@ class TeamAccountRegistry:
 
     def import_csv(self, content: str, *, confirmed: bool) -> dict[str, int]:
         if not confirmed:
-            raise ValueError("Confirm that every imported account is owned or authorized by the team.")
+            raise ValueError(
+                "Confirm that every imported account is owned or authorized by the team."
+            )
 
         reader = csv.DictReader(StringIO(content.lstrip("\ufeff")))
         if reader.fieldnames is None:
