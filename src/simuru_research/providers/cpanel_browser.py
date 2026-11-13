@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import secrets
-import socket
 import string
 import subprocess
 import time
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 from urllib.error import URLError
 from urllib.request import urlopen
 
@@ -16,12 +16,11 @@ from simuru_research.providers.mailbox import MailboxError
 
 
 class CpanelBrowserMailboxManager:
-    """Attach Playwright to a persistent local Chromium process.
+    """Manage a local Chromium session and call cPanel UAPI as the signed-in user.
 
-    Streamlit reruns its script after each button click, so a Playwright object
-    must not be kept across Streamlit script threads. Chromium runs independently
-    with a local CDP endpoint; each Streamlit run creates a fresh Playwright client
-    and attaches to that same browser process.
+    Playwright clients are intentionally short-lived: Streamlit reruns UI code and
+    may execute fragments on different threads. Chromium itself remains an
+    independent process with a persistent local profile and CDP endpoint.
     """
 
     def __init__(
@@ -40,11 +39,6 @@ class CpanelBrowserMailboxManager:
         self.quota_mb = quota_mb
         self.profile_dir = Path(profile_dir)
         self.debug_port = debug_port
-        self._process: subprocess.Popen | None = None
-        self._playwright: Playwright | None = None
-        self._browser: Browser | None = None
-        self._context: BrowserContext | None = None
-        self._page: Page | None = None
 
         if not self.cpanel_url.startswith("https://"):
             raise MailboxError("cPanel must use HTTPS.")
@@ -68,50 +62,44 @@ class CpanelBrowserMailboxManager:
         except (OSError, URLError):
             return False
 
-    def _attach(self) -> None:
-        if self._browser is not None and self._browser.is_connected():
-            contexts = self._browser.contexts
-            if contexts:
-                self._context = contexts[0]
-                pages = self._context.pages
-                cpanel_pages = [
-                    page for page in pages
-                    if "juwana.iixcp.rumahweb.net" in page.url and ":2083" in page.url
-                ]
-                self._page = cpanel_pages[0] if cpanel_pages else (
-                    pages[0] if pages else self._context.new_page()
-                )
-                return
-
-        self._playwright = sync_playwright().start()
+    @contextmanager
+    def _attached_browser(self) -> Iterator[tuple[Browser, BrowserContext, list[Page]]]:
+        """Create a fresh Playwright client and attach to the independent Chromium."""
+        if not self._cdp_ready():
+            raise MailboxError("Chromium cPanel belum aktif. Klik Connect cPanel terlebih dahulu.")
+        playwright: Playwright = sync_playwright().start()
+        browser: Browser | None = None
         try:
-            self._browser = self._playwright.chromium.connect_over_cdp(
-                self._cdp_url, timeout=60_000
-            )
-        except Exception:
-            self._playwright.stop()
-            self._playwright = None
+            browser = playwright.chromium.connect_over_cdp(self._cdp_url, timeout=20_000)
+            contexts = browser.contexts
+            if not contexts:
+                raise MailboxError("Chromium aktif tetapi tidak memiliki browser context.")
+            context = contexts[0]
+            yield browser, context, context.pages
+        except MailboxError:
             raise
-        contexts = self._browser.contexts
-        self._context = contexts[0] if contexts else self._browser.new_context()
-        pages = self._context.pages
-        cpanel_pages = [
-            page for page in pages
-            if "juwana.iixcp.rumahweb.net" in page.url and ":2083" in page.url
-        ]
-        self._page = cpanel_pages[0] if cpanel_pages else (
-            pages[0] if pages else self._context.new_page()
-        )
+        except Exception as exc:
+            raise MailboxError(
+                f"Gagal menghubungkan Playwright ke Chromium CDP: {type(exc).__name__}. "
+                "Tutup Chromium SIMURU yang lama, lalu klik Connect cPanel lagi."
+            ) from exc
+        finally:
+            # Stop the Playwright driver only; do not close the user's browser here.
+            playwright.stop()
+
+    def _is_cpanel_page(self, page: Page) -> bool:
+        host = self.cpanel_url.split("://", 1)[-1].split("/", 1)[0].lower()
+        return page.url.lower().startswith("https://") and host in page.url.lower()
 
     def connect(self) -> str:
-        """Start/attach to visible Chromium; user signs in manually."""
+        """Start visible Chromium if necessary; user signs in manually."""
         self.profile_dir.mkdir(parents=True, exist_ok=True)
         if not self._cdp_ready():
-            # Read the installed Playwright Chromium path, then stop the driver
-            # before launching the browser as an independent persistent process.
             probe = sync_playwright().start()
-            executable = Path(probe.chromium.executable_path)
-            probe.stop()
+            try:
+                executable = Path(probe.chromium.executable_path)
+            finally:
+                probe.stop()
             if not executable.exists():
                 raise MailboxError(
                     "Chromium belum terpasang. Jalankan: uv run playwright install chromium"
@@ -127,7 +115,7 @@ class CpanelBrowserMailboxManager:
                 self.cpanel_url,
             ]
             try:
-                self._process = subprocess.Popen(
+                subprocess.Popen(
                     command,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
@@ -135,62 +123,24 @@ class CpanelBrowserMailboxManager:
                 )
             except OSError as exc:
                 raise MailboxError(f"Gagal membuka Chromium: {type(exc).__name__}") from exc
-            for _ in range(40):
+
+            for _ in range(60):
                 if self._cdp_ready():
                     break
-                if self._process.poll() is not None:
-                    raise MailboxError(
-                        "Chromium berhenti saat startup. Tutup semua jendela Chromium "
-                        "yang memakai profil SIMURU lalu coba lagi."
-                    )
                 time.sleep(0.25)
             if not self._cdp_ready():
                 raise MailboxError(
-                    "Chromium tidak membuka koneksi lokal. Pastikan port 9222 tidak dipakai "
-                    "aplikasi lain, lalu coba lagi."
+                    "Chromium tidak membuka koneksi lokal pada port debugging. "
+                    "Pastikan port 9222 tidak sedang dipakai aplikasi lain."
                 )
 
-        try:
-            self._attach()
-        except Exception as exc:
-            raise MailboxError(
-                "Chromium aktif tetapi Playwright gagal menyelesaikan handshake CDP. "
-                "Tutup semua proses Chromium SIMURU, pastikan port 9222 tidak dipakai, "
-                "lalu klik Connect cPanel lagi. Detail: "
-                f"{type(exc).__name__}"
-            ) from exc
-        assert self._page is not None
-        if self._page.url in {"about:blank", "chrome://newtab/"}:
-            self._page.goto(self.cpanel_url, wait_until="domcontentloaded")
-        return self._page.url
-
-    def _ensure_attached(self) -> Page:
-        if not self._cdp_ready():
-            raise MailboxError(
-                "Browser cPanel belum aktif. Klik Connect cPanel terlebih dahulu."
-            )
-        self._attach()
-        assert self._page is not None
-        return self._page
-
-    def _cpanel_pages(self) -> list[Page]:
-        """Return all tabs belonging to the configured cPanel host."""
-        if not self._cdp_ready():
-            return []
-        self._attach()
-        assert self._context is not None
-        expected_host = self.cpanel_url.split("://", 1)[-1].split("/", 1)[0].lower()
-        return [
-            page for page in reversed(self._context.pages)
-            if page.url.lower().startswith("https://")
-            and expected_host in page.url.lower()
-            and ":2083" in page.url.lower()
-        ]
+        return "Browser cPanel dibuka. Selesaikan login manual pada jendela Chromium."
 
     @staticmethod
-    def _probe_cpanel_page(page: Page, domain: str) -> dict[str, Any]:
+    def _probe_page(page: Page) -> dict[str, Any]:
+        """Call list_pops without optional filters to isolate session auth from query errors."""
         return page.evaluate(
-            """async (domain) => {
+            """async () => {
               const result = {
                 ok: false,
                 pageUrl: location.origin + location.pathname.replace(/^\\/cpsess[^/]+/, '/cpsess[redacted]'),
@@ -200,15 +150,11 @@ class CpanelBrowserMailboxManager:
               };
               const match = location.pathname.match(/^\\/cpsess[^/]+/);
               if (!match) {
-                result.reason = 'URL tab tidak memiliki prefix sesi /cpsess...';
+                result.reason = 'URL tab tidak memiliki prefix sesi cPanel.';
                 return result;
               }
-              // list_pops is a session/authentication probe; request the full list
-              // and filter the configured domain locally after parsing the response.
-              const endpoint = new URL(
-                match[0] + '/execute/Email/list_pops',
-                location.origin
-              );
+
+              const endpoint = new URL(match[0] + '/execute/Email/list_pops', location.origin);
               result.endpointPath = endpoint.pathname.replace(/^\\/cpsess[^/]+/, '/cpsess[redacted]');
               try {
                 const response = await fetch(endpoint.href, {
@@ -221,22 +167,24 @@ class CpanelBrowserMailboxManager:
                 const responseUrl = new URL(response.url);
                 result.responseUrl = responseUrl.origin + responseUrl.pathname.replace(/^\\/cpsess[^/]+/, '/cpsess[redacted]');
                 result.redirected = response.redirected;
+
                 const raw = await response.text();
                 let payload;
-                try { payload = JSON.parse(raw); }
-                catch (_) {
-                  result.reason = 'UAPI tidak mengembalikan JSON; kemungkinan diarahkan ke halaman login.';
-                  result.responsePreview = raw.slice(0, 180).replace(/\\s+/g, ' ').replace(/cpsess[^/\\s"'<>]+/gi, 'cpsess[redacted]');
+                try {
+                  payload = JSON.parse(raw);
+                } catch (_) {
+                  result.reason = 'UAPI tidak mengembalikan JSON; kemungkinan dialihkan ke halaman login.';
+                  result.responsePreview = raw.slice(0, 240).replace(/\\s+/g, ' ')
+                    .replace(/cpsess[^/\\s"'<>]+/gi, 'cpsess[redacted]');
                   return result;
                 }
+
                 const apiStatus = payload?.result?.status;
+                const safe = (value) => value == null ? null
+                  : JSON.stringify(value).replace(/cpsess[^/\\s"'<>]+/gi, 'cpsess[redacted]');
                 result.apiStatus = apiStatus ?? null;
-                const safeText = (value) => {
-                  if (value == null) return null;
-                  return JSON.stringify(value).replace(/cpsess[^/\\s"'<>]+/gi, 'cpsess[redacted]');
-                };
-                result.apiErrors = safeText(payload?.result?.errors);
-                result.apiMessages = safeText(payload?.result?.messages);
+                result.apiErrors = safe(payload?.result?.errors);
+                result.apiMessages = safe(payload?.result?.messages);
                 result.resultKeys = payload?.result && typeof payload.result === 'object'
                   ? Object.keys(payload.result) : [];
                 result.dataType = Array.isArray(payload?.result?.data)
@@ -244,206 +192,206 @@ class CpanelBrowserMailboxManager:
                 result.ok = response.ok && String(apiStatus) === '1' && !response.redirected;
                 if (!result.ok) {
                   result.reason = response.redirected
-                    ? 'Permintaan UAPI dialihkan; sesi mungkin kedaluwarsa.'
-                    : (result.apiErrors || result.apiMessages || 'UAPI menolak permintaan atau status API bukan 1.');
+                    ? 'UAPI dialihkan ke halaman lain; sesi mungkin kedaluwarsa.'
+                    : (result.apiErrors || result.apiMessages
+                      || safe(payload?.result) || 'UAPI mengembalikan status selain 1.');
                 }
                 return result;
               } catch (error) {
-                result.reason = 'Fetch UAPI gagal: ' + String(error);
+                result.reason = 'Fetch UAPI gagal: ' + String(error)
+                  .replace(/cpsess[^/\\s"'<>]+/gi, 'cpsess[redacted]');
                 return result;
               }
-            }""",
-            domain,
+            }"""
         )
+
+    def _find_authenticated_page(self, pages: list[Page]) -> tuple[Page | None, list[dict[str, Any]]]:
+        diagnostics: list[dict[str, Any]] = []
+        for page in reversed(pages):
+            if not self._is_cpanel_page(page):
+                continue
+            try:
+                probe = self._probe_page(page)
+                diagnostics.append(probe)
+                if probe.get("ok"):
+                    return page, diagnostics
+            except Exception as exc:
+                diagnostics.append({
+                    "pageUrl": "cPanel tab (URL disamarkan)",
+                    "reason": f"{type(exc).__name__}: {exc}",
+                })
+        return None, diagnostics
 
     def session_status(self) -> dict[str, Any]:
-        """Check authenticated UAPI access across all open cPanel tabs."""
+        """Auto-check all open cPanel tabs and verify actual UAPI access."""
         try:
-            pages = self._cpanel_pages()
-            if not pages:
+            with self._attached_browser() as (_, _, pages):
+                page, diagnostics = self._find_authenticated_page(pages)
+                if page is not None:
+                    return {
+                        "connected": True,
+                        "message": "Sesi cPanel aktif; UAPI Email::list_pops berhasil diakses.",
+                        "diagnostics": diagnostics,
+                    }
+                if not any(self._is_cpanel_page(p) for p in pages):
+                    message = "Browser aktif, tetapi tab cPanel tidak ditemukan. Klik Connect cPanel."
+                elif diagnostics:
+                    last = diagnostics[-1]
+                    message = (
+                        "Tab cPanel ditemukan, tetapi UAPI gagal. "
+                        f"HTTP={last.get('httpStatus', '—')}; "
+                        f"API status={last.get('apiStatus', '—')}; "
+                        f"Alasan={last.get('reason', 'Tidak diketahui')}"
+                    )
+                else:
+                    message = "Tab cPanel ditemukan, tetapi sesi belum dapat diverifikasi."
                 return {
                     "connected": False,
-                    "message": "Tab cPanel tidak ditemukan pada Chromium SIMURU. Klik Connect cPanel.",
-                    "diagnostics": [],
+                    "message": message,
+                    "diagnostics": diagnostics,
                 }
-            diagnostics: list[dict[str, Any]] = []
-            for page in pages:
-                try:
-                    probe = self._probe_cpanel_page(page, self.domain)
-                    diagnostics.append(probe)
-                    if probe.get("ok"):
-                        self._page = page
-                        return {
-                            "connected": True,
-                            "message": "Sesi cPanel aktif; UAPI Email::list_pops berhasil diakses.",
-                            "diagnostics": diagnostics,
-                        }
-                except Exception as exc:
-                    diagnostics.append({
-                        "pageUrl": page.url,
-                        "reason": f"{type(exc).__name__}: {exc}",
-                    })
-            last = diagnostics[-1] if diagnostics else {}
-            reason = last.get("reason") or "Tidak ada tab cPanel yang lolos pemeriksaan UAPI."
-            return {
-                "connected": False,
-                "message": f"Browser cPanel ditemukan, tetapi UAPI belum terautentikasi: {reason}",
-                "diagnostics": diagnostics,
-            }
-        except Exception as exc:
-            return {
-                "connected": False,
-                "message": f"Gagal memeriksa browser cPanel: {type(exc).__name__}: {exc}",
-                "diagnostics": [],
-            }
+        except MailboxError as exc:
+            return {"connected": False, "message": str(exc), "diagnostics": []}
+
+    @staticmethod
+    def _uapi_succeeded(payload: dict[str, Any]) -> bool:
+        return str(payload.get("result", {}).get("status", "")) == "1"
+
+    def _list_mailboxes(self, page: Page) -> list[dict[str, Any]]:
+        payload = page.evaluate(
+            """async () => {
+              const match = location.pathname.match(/^\\/cpsess[^/]+/);
+              if (!match) throw new Error('Prefix sesi cPanel tidak ditemukan.');
+              const endpoint = match[0] + '/execute/Email/list_pops';
+              const response = await fetch(endpoint, {
+                method: 'GET',
+                credentials: 'same-origin',
+                cache: 'no-store',
+                headers: {'Accept': 'application/json'}
+              });
+              if (!response.ok) throw new Error('list_pops HTTP ' + response.status);
+              return await response.json();
+            }"""
+        )
+        if not self._uapi_succeeded(payload):
+            result = payload.get("result", {})
+            details = result.get("errors") or result.get("messages") or "Tidak ada detail UAPI."
+            raise MailboxError(f"Email::list_pops gagal: {details}")
+        data = payload.get("result", {}).get("data") or []
+        if not isinstance(data, list):
+            raise MailboxError("Format data Email::list_pops tidak dikenali.")
+        return data
 
     def create_five(self) -> list[dict[str, str]]:
-        """Create exactly eight unique mailboxes using the authenticated cPanel session."""
-        status = self.session_status()
-        if not status.get("connected"):
-            raise MailboxError(
-                f"{status.get('message', 'Sesi cPanel belum terverifikasi.')}"
-            )
-        page = self._page
-        if page is None:
-            raise MailboxError("Tab cPanel terautentikasi tidak ditemukan.")
-
-        existing = page.evaluate(
-            """async (domain) => {
-              const match = location.pathname.match(/^\/cpsess[^/]+/);
-              if (!match) throw new Error('cPanel session prefix not found in URL');
-              const endpoint = match[0] + '/execute/Email/list_pops';
-              const response = await fetch(endpoint, {credentials: 'same-origin'});
-              if (!response.ok) throw new Error('list_pops HTTP ' + response.status);
-              return await response.json();
-            }""",
-            self.domain,
-        )
-        result = existing.get("result", {})
-        if result.get("status") != 1:
-            raise MailboxError("cPanel list_pops gagal. Pastikan login ke akun hosting.")
-        current = {
-            str(item.get("email", "")).lower()
-            for item in (result.get("data") or [])
-            if isinstance(item, dict)
-            and str(item.get("email", "")).lower().endswith("@" + self.domain)
-        }
-
-        batch = secrets.token_hex(4)
-        alphabet = string.ascii_letters + string.digits + "!@#$%_-"
-        created: list[dict[str, str]] = []
-        for index in range(1, 6):
-            local_part = f"{self.prefix}-{batch}-{index:02d}"
-            address = f"{local_part}@{self.domain}"
-            if address.lower() in current:
-                raise MailboxError(f"Alamat {address} sudah ada. Jalankan batch baru.")
-            password = "".join(secrets.choice(alphabet) for _ in range(24)) + "aA9!"
-            payload = page.evaluate(
-                """async ({localPart, domain, password, quota}) => {
-                  const params = new URLSearchParams({
-                    email: localPart,
-                    domain,
-                    password,
-                    quota: String(quota),
-                    send_welcome_email: '0'
-                  });
-                  const match = location.pathname.match(/^\/cpsess[^/]+/);
-                  if (!match) throw new Error('cPanel session prefix not found in URL');
-                  const response = await fetch(match[0] + '/execute/Email/add_pop?' + params.toString(), {
-                    method: 'GET',
-                    credentials: 'same-origin'
-                  });
-                  if (!response.ok) throw new Error('add_pop HTTP ' + response.status);
-                  return await response.json();
-                }""",
-                {
-                    "localPart": local_part,
-                    "domain": self.domain,
-                    "password": password,
-                    "quota": self.quota_mb,
-                },
-            )
-            add_result = payload.get("result", {})
-            if add_result.get("status") != 1:
-                details = add_result.get("errors") or add_result.get("messages") or []
+        """Create exactly five unique mailboxes and verify each with a fresh list call."""
+        with self._attached_browser() as (_, _, pages):
+            page, diagnostics = self._find_authenticated_page(pages)
+            if page is None:
+                last = diagnostics[-1] if diagnostics else {}
                 raise MailboxError(
-                    f"Gagal membuat {address} setelah {len(created)} mailbox. "
-                    f"{'; '.join(map(str, details)) or 'cPanel menolak permintaan.'}"
+                    "Sesi cPanel belum terverifikasi. "
+                    f"Detail: {last.get('reason', 'tidak ada tab cPanel aktif')}"
                 )
-            created.append({"email": address, "password": password, "status": "created"})
-            time.sleep(0.25)
 
-        verified = page.evaluate(
-            """async (domain) => {
-              const match = location.pathname.match(/^\/cpsess[^/]+/);
-              if (!match) throw new Error('cPanel session prefix not found in URL');
-              const endpoint = match[0] + '/execute/Email/list_pops';
-              const response = await fetch(endpoint, {credentials: 'same-origin'});
-              if (!response.ok) throw new Error('list_pops HTTP ' + response.status);
-              return await response.json();
-            }""",
-            self.domain,
-        )
-        verified_items = verified.get("result", {}).get("data") or []
-        verified_addresses = {
-            str(item.get("email", "")).lower()
-            for item in verified_items
-            if isinstance(item, dict)
-        }
-        for item in created:
-            if item["email"].lower() not in verified_addresses:
-                item["status"] = "created_unverified"
-        return created
+            current = {
+                str(item.get("email", "")).lower()
+                for item in self._list_mailboxes(page)
+                if isinstance(item, dict)
+                and str(item.get("email", "")).lower().endswith("@" + self.domain)
+            }
 
-    def close(self) -> None:
-        """Log out of cPanel, clear this browser context, then close Chromium."""
-        logout_result = "not_connected"
-        try:
-            page = self._ensure_attached() if self._cdp_ready() else None
-            if page is not None:
-                origin = page.evaluate("() => location.origin")
-                path = page.evaluate("() => location.pathname")
-                match = __import__("re").match(r"^(/cpsess[^/]+)", path)
-                if match and origin.startswith("https://") and ":2083" in origin:
-                    session_prefix = match.group(1)
-                    logout_target = page.evaluate(
-                        """() => {
-                          const link = [...document.querySelectorAll('a[href]')].find(a =>
-                            /logout/i.test(a.href) || /log\s*out/i.test(a.innerText || '')
-                          );
-                          return link ? link.href : null;
-                        }"""
+            batch = secrets.token_hex(4)
+            alphabet = string.ascii_letters + string.digits + "!@#$%_-"
+            created: list[dict[str, str]] = []
+            for index in range(1, 6):
+                local_part = f"{self.prefix}-{batch}-{index:02d}"
+                address = f"{local_part}@{self.domain}"
+                if address.lower() in current:
+                    raise MailboxError(f"Alamat {address} sudah ada; tidak ada akun yang ditimpa.")
+                password = "".join(secrets.choice(alphabet) for _ in range(24)) + "aA9!"
+                payload = page.evaluate(
+                    """async ({localPart, domain, password, quota}) => {
+                      const match = location.pathname.match(/^\\/cpsess[^/]+/);
+                      if (!match) throw new Error('Prefix sesi cPanel tidak ditemukan.');
+                      const params = new URLSearchParams({
+                        email: localPart,
+                        domain,
+                        password,
+                        quota: String(quota),
+                        send_welcome_email: '0'
+                      });
+                      const response = await fetch(
+                        match[0] + '/execute/Email/add_pop?' + params.toString(),
+                        {method: 'GET', credentials: 'same-origin', cache: 'no-store'}
+                      );
+                      if (!response.ok) throw new Error('add_pop HTTP ' + response.status);
+                      return await response.json();
+                    }""",
+                    {
+                        "localPart": local_part,
+                        "domain": self.domain,
+                        "password": password,
+                        "quota": self.quota_mb,
+                    },
+                )
+                if not self._uapi_succeeded(payload):
+                    details = payload.get("result", {}).get("errors") or payload.get("result", {}).get("messages") or "cPanel menolak permintaan."
+                    raise MailboxError(
+                        f"Gagal membuat {address} setelah {len(created)} mailbox: {details}"
                     )
-                    if not logout_target:
-                        logout_target = f"{origin}{session_prefix}/logout/?locale=en"
-                    # Navigate through cPanel's own logout route so the server
-                    # invalidates the authenticated session (not merely the local tab).
-                    page.goto(logout_target, wait_until="domcontentloaded", timeout=15000)
-                    page.wait_for_timeout(500)
-                    logout_result = "logout_requested"
-                else:
-                    logout_result = "no_cpanel_session"
-        except Exception:
-            # Still close the local browser even if cPanel is unreachable.
-            logout_result = "logout_unconfirmed"
+                created.append({"email": address, "password": password, "status": "created"})
+                time.sleep(0.25)
 
+            verified = self._list_mailboxes(page)
+            verified_addresses = {
+                str(item.get("email", "")).lower()
+                for item in verified
+                if isinstance(item, dict)
+            }
+            for item in created:
+                if item["email"].lower() not in verified_addresses:
+                    item["status"] = "created_unverified"
+            return created
+
+    def close(self) -> dict[str, str]:
+        """Attempt server-side cPanel logout, clear cookies, then close Chromium."""
+        logout_confirmed = False
         try:
-            if self._context is not None:
-                self._context.clear_cookies()
+            with self._attached_browser() as (browser, context, pages):
+                page, _ = self._find_authenticated_page(pages)
+                if page is None:
+                    page = next((p for p in reversed(pages) if self._is_cpanel_page(p)), None)
+                if page is not None:
+                    origin = page.evaluate("() => location.origin")
+                    path = page.evaluate("() => location.pathname")
+                    import re
+
+                    match = re.match(r"^(/cpsess[^/]+)", path)
+                    if match:
+                        logout_target = page.evaluate(
+                            """() => {
+                              const link = [...document.querySelectorAll('a[href]')].find(a =>
+                                /logout/i.test(a.href) || /log\\s*out/i.test(a.innerText || '')
+                              );
+                              return link ? link.href : null;
+                            }"""
+                        )
+                        if not logout_target:
+                            logout_target = f"{origin}{match.group(1)}/logout/?locale=en"
+                        page.goto(logout_target, wait_until="domcontentloaded", timeout=15000)
+                        page.wait_for_timeout(500)
+                        body_text = page.locator("body").inner_text(timeout=3000).lower()
+                        logout_confirmed = "login to cpanel" in body_text or "log in to cpanel" in body_text
+                context.clear_cookies()
+                browser.close()
         except Exception:
-            pass
-        try:
-            if self._browser is not None and self._browser.is_connected():
-                self._browser.close()
-        finally:
-            if self._playwright is not None:
-                self._playwright.stop()
-            self._playwright = None
-            self._browser = None
-            self._context = None
-            self._page = None
-        if logout_result == "logout_unconfirmed":
-            raise MailboxError(
-                "Browser ditutup dan cookie lokal dibersihkan, tetapi logout server cPanel "
-                "belum dapat dikonfirmasi. Periksa status login cPanel sebelum digunakan lagi."
-            )
+            logout_confirmed = False
+        return {
+            "browser_closed": "true",
+            "server_logout_confirmed": "true" if logout_confirmed else "false",
+            "message": (
+                "Logout server cPanel terverifikasi; cookie lokal dihapus dan Chromium ditutup."
+                if logout_confirmed
+                else "Cookie lokal dihapus dan Chromium ditutup, tetapi logout server tidak dapat diverifikasi. Periksa status sesi sebelum digunakan kembali."
+            ),
+        }
