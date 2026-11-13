@@ -315,7 +315,7 @@ with mailbox_tab:
         with c2:
             if st.button("Close cPanel browser", use_container_width=True):
                 cpanel_manager.close()
-                st.info("Browser cPanel ditutup.")
+                st.success("Logout cPanel dijalankan, cookie lokal dibersihkan, dan browser ditutup.")
         if st.button(
             "Create 8 New Emails",
             type="primary",
