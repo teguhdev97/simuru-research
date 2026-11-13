@@ -282,12 +282,54 @@ class CpanelBrowserMailboxManager:
         return created
 
     def close(self) -> None:
-        """Close the persistent Chromium browser and release this Playwright client."""
-        if self._browser is not None and self._browser.is_connected():
-            self._browser.close()
-        if self._playwright is not None:
-            self._playwright.stop()
-        self._playwright = None
-        self._browser = None
-        self._context = None
-        self._page = None
+        """Log out of cPanel, clear this browser context, then close Chromium."""
+        logout_result = "not_connected"
+        try:
+            page = self._ensure_attached() if self._cdp_ready() else None
+            if page is not None:
+                origin = page.evaluate("() => location.origin")
+                path = page.evaluate("() => location.pathname")
+                match = __import__("re").match(r"^(/cpsess[^/]+)", path)
+                if match and origin.startswith("https://") and ":2083" in origin:
+                    session_prefix = match.group(1)
+                    logout_target = page.evaluate(
+                        """() => {
+                          const link = [...document.querySelectorAll('a[href]')].find(a =>
+                            /logout/i.test(a.href) || /log\s*out/i.test(a.innerText || '')
+                          );
+                          return link ? link.href : null;
+                        }"""
+                    )
+                    if not logout_target:
+                        logout_target = f"{origin}{session_prefix}/logout/?locale=en"
+                    # Navigate through cPanel's own logout route so the server
+                    # invalidates the authenticated session (not merely the local tab).
+                    page.goto(logout_target, wait_until="domcontentloaded", timeout=15000)
+                    page.wait_for_timeout(500)
+                    logout_result = "logout_requested"
+                else:
+                    logout_result = "no_cpanel_session"
+        except Exception:
+            # Still close the local browser even if cPanel is unreachable.
+            logout_result = "logout_unconfirmed"
+
+        try:
+            if self._context is not None:
+                self._context.clear_cookies()
+        except Exception:
+            pass
+        try:
+            if self._browser is not None and self._browser.is_connected():
+                self._browser.close()
+        finally:
+            if self._playwright is not None:
+                self._playwright.stop()
+            self._playwright = None
+            self._browser = None
+            self._context = None
+            self._page = None
+        if logout_result == "logout_unconfirmed":
+            raise MailboxError(
+                "Browser ditutup dan cookie lokal dibersihkan, tetapi logout server cPanel "
+                "belum dapat dikonfirmasi. Periksa status login cPanel sebelum digunakan lagi."
+            )
