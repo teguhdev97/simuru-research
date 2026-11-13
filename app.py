@@ -3,6 +3,10 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from simuru_research.config.google_oauth_qa import (
+    GoogleOAuthQAConfigError,
+    GoogleOAuthQAConfigStore,
+)
 from simuru_research.config.settings import Settings
 from simuru_research.config.website_profiles import (
     WebsiteProfileError,
@@ -290,73 +294,185 @@ with sandbox_tab:
 with mailbox_tab:
     st.subheader("Mailbox Manager · Rumahweb cPanel")
     st.write(
-        "Buat delapan mailbox baru sekaligus pada domain teguhharits.com. "
-        "Browser cPanel akan dibuka secara lokal; login dilakukan manual oleh pemilik akun."
+        "Buat tepat lima mailbox baru pada domain teguhharits.com. "
+        "Status login cPanel diperiksa otomatis setelah kamu menyelesaikan login di Chromium."
     )
     st.info(
-        "SIMURU tidak menyimpan password cPanel, cookie, atau cpsess. "
-        "Sesi login hanya berada di profil Chromium lokal pada laptop ini."
+        "Mode browser-session tidak memerlukan cPanel API Token. "
+        "Password cPanel dan cpsess tidak disimpan di .env atau GitHub."
     )
-    try:
-        cpanel_manager = CpanelBrowserMailboxManager(
-            cpanel_url="https://juwana.iixcp.rumahweb.net:2083",
-            domain="teguhharits.com",
-            prefix="qa",
-            quota_mb=50,
-        )
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            if st.button("Connect cPanel", type="primary", use_container_width=True):
-                current_url = cpanel_manager.connect()
-                st.success(
-                    "Browser cPanel dibuka. Selesaikan login di jendela Chromium, "
-                    "lalu kembali ke tab ini."
-                )
-        with c2:
-            if st.button("Check cPanel Session", use_container_width=True):
-                with st.spinner("Memeriksa akses UAPI cPanel..."):
-                    status = cpanel_manager.session_status()
-                if status.get("connected"):
-                    st.success(status["message"])
-                else:
-                    st.error(status["message"])
-                for diagnostic in status.get("diagnostics", []):
-                    with st.expander("Detail pemeriksaan (session ID disamarkan)"):
-                        st.json(diagnostic)
-        with c3:
-            if st.button("Close cPanel browser", use_container_width=True):
-                cpanel_manager.close()
-                st.success("Logout cPanel dijalankan, cookie lokal dibersihkan, dan browser ditutup.")
-        if st.button(
-            "Create 8 New Emails",
-            type="primary",
-            use_container_width=True,
-            key="create_eight_mailboxes",
-        ):
-            with st.spinner("Memeriksa sesi cPanel dan membuat delapan mailbox..."):
-                mailbox_rows = cpanel_manager.create_eight()
-            verified_count = sum(row["status"] == "created" for row in mailbox_rows)
-            st.success(
-                f"Batch selesai: {verified_count}/8 mailbox terverifikasi. "
-                "Simpan kredensial sekarang; password hanya ditampilkan pada hasil batch ini."
-            )
-            mailbox_frame = pd.DataFrame(mailbox_rows)
-            st.dataframe(mailbox_frame, use_container_width=True, hide_index=True)
-            st.download_button(
-                "Download 8 mailbox credentials (CSV)",
-                data=mailbox_frame.to_csv(index=False).encode("utf-8"),
-                file_name="simuru-eight-mailboxes.csv",
-                mime="text/csv",
-            )
+    cpanel_manager = CpanelBrowserMailboxManager(
+        cpanel_url="https://juwana.iixcp.rumahweb.net:2083",
+        domain="teguhharits.com",
+        prefix="qa",
+        quota_mb=50,
+    )
+
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("Connect cPanel", type="primary", use_container_width=True):
+            try:
+                st.info(cpanel_manager.connect())
+                st.rerun()
+            except MailboxError as exc:
+                st.error(str(exc))
+    with c2:
+        if st.button("Logout & Close cPanel", use_container_width=True):
+            logout = cpanel_manager.close()
+            if logout["server_logout_confirmed"] == "true":
+                st.success(logout["message"])
+            else:
+                st.warning(logout["message"])
+
+    @st.fragment(run_every="3s")
+    def render_live_cpanel_status():
+        status = cpanel_manager.session_status()
+        st.session_state["cpanel_session_status"] = status
+        if status.get("connected"):
+            st.success("cPanel login terdeteksi dan UAPI Email::list_pops berhasil. Tombol pembuatan aktif.")
+        else:
+            st.warning(status.get("message", "Menunggu login cPanel..."))
+        diagnostics = status.get("diagnostics", [])
+        if diagnostics:
+            with st.expander("Detail diagnostik UAPI (session ID disamarkan)"):
+                st.json(diagnostics)
+
+    render_live_cpanel_status()
+
+    session_ready = bool(
+        st.session_state.get("cpanel_session_status", {}).get("connected", False)
+    )
+    if st.button(
+        "Create 5 New Emails",
+        type="primary",
+        use_container_width=True,
+        key="create_five_mailboxes",
+        disabled=not session_ready,
+    ):
+        st.session_state.pop("latest_mailbox_batch", None)
+        try:
+            with st.spinner("Membuat tepat lima mailbox dan memverifikasi hasilnya..."):
+                mailbox_rows = cpanel_manager.create_five()
             st.session_state["latest_mailbox_batch"] = mailbox_rows
-        previous_batch = st.session_state.get("latest_mailbox_batch")
-        if previous_batch:
-            st.caption("Hasil batch terakhir pada sesi dashboard ini:")
-            st.dataframe(pd.DataFrame(previous_batch), use_container_width=True, hide_index=True)
-    except MailboxError as exc:
-        st.error(str(exc))
-    except Exception as exc:
-        st.error(f"cPanel browser error: {type(exc).__name__}: {exc}")
+            successful = sum(row.get("status") == "created" for row in mailbox_rows)
+            if successful == 5 and len(mailbox_rows) == 5:
+                st.success("Berhasil membuat dan memverifikasi kelima mailbox.")
+            else:
+                st.error(
+                    f"Baru {successful}/5 mailbox terverifikasi. "
+                    "Tahap Google OAuth belum dibuka."
+                )
+        except MailboxError as exc:
+            st.error(str(exc))
+
+    mailbox_rows = st.session_state.get("latest_mailbox_batch", [])
+    batch_complete = (
+        len(mailbox_rows) == 5
+        and all(row.get("status") == "created" for row in mailbox_rows)
+    )
+    if mailbox_rows:
+        mailbox_frame = pd.DataFrame(mailbox_rows)
+        st.dataframe(
+            mailbox_frame[["email", "status"]],
+            use_container_width=True,
+            hide_index=True,
+        )
+        st.download_button(
+            "Download 5 mailbox credentials (CSV)",
+            data=mailbox_frame.to_csv(index=False).encode("utf-8"),
+            file_name="simuru-five-mailboxes.csv",
+            mime="text/csv",
+        )
+
+    if batch_complete:
+        st.divider()
+        st.subheader("Google OAuth · Prepare Test Users")
+        st.success(
+            "Kelima mailbox berhasil dibuat dan ditemukan kembali melalui cPanel. "
+            "Tahap konfigurasi Google OAuth sekarang tersedia."
+        )
+        st.write(
+            "Gunakan alamat di bawah untuk Google Accounts yang akan menguji OAuth aplikasi milikmu. "
+            "Mailbox bukan otomatis Google Account; setiap alamat harus didaftarkan/ditautkan secara "
+            "manual sebagai Google Account dan diverifikasi oleh Google."
+        )
+        oauth_store = GoogleOAuthQAConfigStore()
+        try:
+            saved_oauth = oauth_store.load() or {}
+        except GoogleOAuthQAConfigError as exc:
+            saved_oauth = {}
+            st.error(str(exc))
+
+        test_emails = [str(row["email"]) for row in mailbox_rows]
+        st.code("\\n".join(test_emails), language="text")
+        st.download_button(
+            "Download Google OAuth test-user list",
+            data=("\\n".join(test_emails) + "\\n").encode("utf-8"),
+            file_name="google-oauth-test-users.txt",
+            mime="text/plain",
+        )
+        with st.expander("Google Account preparation steps", expanded=True):
+            st.markdown(
+                "1. Pastikan kelima mailbox bisa menerima email.\n"
+                "2. Untuk setiap alamat yang belum menjadi Google Account, buka "
+                "[Google Account sign-up](https://accounts.google.com/signup).\n"
+                "3. Pilih **Use your existing email**, masukkan alamat mailbox, lalu "
+                "selesaikan verifikasi email dan langkah keamanan Google secara manual.\n"
+                "4. Buka [Google Auth Platform → Audience](https://console.cloud.google.com/auth/audience).\n"
+                "5. Pada **Test users**, pilih **Add users**, tempel lima alamat di atas, lalu Save."
+            )
+            st.caption(
+                "SIMURU tidak membuat Google Accounts, tidak mengisi CAPTCHA/2FA, dan tidak menyimpan "
+                "password Google. Google mewajibkan akun Google yang valid untuk daftar test users."
+            )
+
+        with st.form("google_oauth_qa_config_form"):
+            st.markdown("**OAuth client milik aplikasi yang kamu kembangkan**")
+            g1, g2 = st.columns(2)
+            with g1:
+                oauth_project = st.text_input(
+                    "Google Cloud project name",
+                    value=str(saved_oauth.get("project_name", "")),
+                    placeholder="SIMURU OAuth QA",
+                )
+                oauth_client_id = st.text_input(
+                    "OAuth Client ID",
+                    value=str(saved_oauth.get("client_id", "")),
+                    placeholder="...apps.googleusercontent.com",
+                )
+            with g2:
+                oauth_redirect_uri = st.text_input(
+                    "Authorized redirect URI",
+                    value=str(saved_oauth.get("redirect_uri", "")),
+                    placeholder="http://localhost:8000/auth/google/callback",
+                )
+                st.text_input(
+                    "OAuth scopes",
+                    value="openid email profile",
+                    disabled=True,
+                )
+            st.warning(
+                "Jangan masukkan Client Secret di sini. Secret yang terlihat pada screenshot "
+                "sebelumnya perlu dirotasi dari Google Cloud Console."
+            )
+            save_oauth_config = st.form_submit_button(
+                "Save Google OAuth QA configuration",
+                type="primary",
+                use_container_width=True,
+            )
+        if save_oauth_config:
+            try:
+                oauth_store.save({
+                    "project_name": oauth_project,
+                    "client_id": oauth_client_id,
+                    "redirect_uri": oauth_redirect_uri,
+                    "emails": test_emails,
+                })
+                st.success(
+                    "Metadata OAuth tersimpan lokal. Client Secret tidak disimpan."
+                )
+            except GoogleOAuthQAConfigError as exc:
+                st.error(str(exc))
 
 with website_tab:
     st.subheader("Website Automation · Visual Configuration")
