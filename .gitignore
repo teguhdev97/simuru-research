@@ -1,35 +1,64 @@
-# Python
-__pycache__/
-*.py[cod]
-build/
-dist/
-wheels/
-*.egg-info/
-
-# Virtual environments
-.venv/
-.uv/
-
-# Secrets
+# --- Environment Variables & Secrets ---
 .env
 .env.*
 !.env.example
+.streamlit/secrets.toml
 
-# Local database and generated exports
-data/
-exports/
-*.sqlite
-*.sqlite3
-*.db
+# --- Python & Bytecode ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
-# Test and tooling cache
+# --- Virtual Environments & Package Managers ---
+.venv/
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.uv/
+
+# --- IDE & Editor Configs (VS Code, PyCharm, Windows) ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Testing, Linter & Coverage ---
+.tox/
+.nox/
 .pytest_cache/
+.mypy_cache/
 .ruff_cache/
 .coverage
 htmlcov/
+junit.xml
 
-# Editors and operating systems
-.vscode/
-.idea/
-.DS_Store
-Thumbs.db
+# --- Local App Data, Database & Browser Profiles ---
+data/
+*.sqlite3
+*.sqlite
+.cpanel-browser-profile/
