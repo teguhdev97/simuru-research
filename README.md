@@ -133,9 +133,32 @@ The dashboard includes:
 1. **Overview** — team account counts and latest QA run.
 2. **Team Accounts** — add, import, inspect, and export metadata for existing team-owned accounts.
 3. **Sandbox Batch** — synthetic identity/concurrency checks.
-4. **Registration QA** — run 40 local registration, email verification, SMS verification, and login workflows.
-5. **Run History & Export** — inspect previous runs and download CSV.
-6. **SIMURU API** — browse account profile, balance, services, countries, prices, and country insights.
+4. **Mailbox Manager** — opens a local persistent cPanel browser session and creates exactly five new mailboxes on the configured owned domain, then exposes Google OAuth test-user preparation only after all five are verified.
+5. **Website Automation** — visually configure and save website QA profiles locally; no JSON editing required.
+6. **Registration QA** — run 40 local registration, email verification, SMS verification, and login workflows.
+7. **Run History & Export** — inspect previous runs and download CSV.
+8. **SIMURU API** — browse account profile, balance, services, countries, prices, and country insights.
+
+## Website Automation (visual configuration)
+
+The **Website Automation** tab provides a form-based profile manager and a read-only
+Playwright form inspector. Enter a registration page URL and click **Inspect Website &
+Auto-detect Selectors** to discover visible inputs, labels, placeholders, submit controls,
+and obvious Google sign-in buttons. Suggested CSS selectors are copied into the profile
+form for review and can be edited before saving. The inspector never submits a form or
+performs a login.
+Save, select, preview, or delete profiles in the dashboard.
+
+Profiles are stored locally in `data/website_profiles.json`, which is covered by
+`.gitignore`. No manual JSON editing is required. Remote sites must use HTTPS.
+A profile must explicitly confirm ownership or authorization before it can be considered
+eligible for future QA execution.
+
+This initial release is a **configuration manager only**: it does not submit external
+registration forms, create Google Accounts, or automate sign-in to third-party services.
+OAuth client credentials and secrets are not collected by this profile form. For an
+application you own, configure its OAuth client and redirect URI separately in Google
+Auth Platform and keep client secrets in local secret storage.
 
 ## Team Account Registry
 
@@ -282,6 +305,49 @@ simuru-research/
 ~~~
 
 
+## Project handoff and product requirements
+
+- [Project.md](Project.md) — architecture, current implementation, local setup, security boundaries, and instructions for AI coding agents.
+- [PRD.md](PRD.md) — product goals, user journeys, functional requirements, acceptance criteria, milestones, and risks.
+
+## Local five-mailbox QA
+
+The Registration QA dashboard can create exactly five real mailboxes per run on a
+domain you control. It uses cPanel UAPI `Email::add_pop`, assigns distinct
+deterministic mailbox passwords derived from a local master secret, and stores the
+five addresses in SQLite run history. It does not submit website registration forms.
+
+See [docs/local-mailbox-qa.md](docs/local-mailbox-qa.md) for cPanel API token setup,
+Windows configuration, mailbox naming, IMAP settings, and sender-allowlisted OTP
+reader behavior. Keep cPanel tokens and mailbox master secrets in `.env` only.
+
+## Mailbox Manager (five local cPanel mailboxes)
+
+The **Mailbox Manager** tab opens a persistent, visible Chromium profile on the local
+Windows laptop. Sign in manually to your own Rumahweb cPanel, then click **Create 5 New
+Emails**. SIMURU uses same-origin cPanel UAPI calls to list existing mailboxes, create
+five unique addresses, and verify the result.
+
+- No cPanel API token is required for this browser-session mode.
+- The cPanel password, cookies, and `cpsess` token are never copied into application
+  settings, logs, or GitHub.
+- The browser profile is stored under `data/cpanel-browser-profile` and is ignored by Git.
+- Each mailbox receives a distinct random password. Download the one-time CSV result
+  and store it securely; the passwords are not saved in the SQLite run history.
+- Use only a cPanel account and domain you own or are authorized to administer.
+
+Install and run:
+
+~~~powershell
+uv sync --extra dev
+uv run playwright install chromium
+uv run streamlit run app.py
+~~~
+
+Open **Mailbox Manager**, click **Connect cPanel**, complete login in Chromium, return
+to Streamlit, then click **Create 5 New Emails**. See
+[docs/mailbox-manager.md](docs/mailbox-manager.md).
+
 ## Browser Form QA (Selenium)
 
 An optional Selenium utility can inspect the registration form of a local application
@@ -333,3 +399,57 @@ uv run simuru-browser-qa --url https://staging.example.org/register --headless
 See [docs/browser-form-qa.md](docs/browser-form-qa.md) for details. The existing
 **Registration QA** runner remains the tool for end-to-end synthetic registration,
 email/SMS verification, and login tests against the local QA API.
+
+
+## Google OAuth QA test-user preparation
+
+After a successful five-mailbox batch, the Mailbox Manager reveals a Google OAuth
+preparation panel. It provides a copy/download list of the five addresses and stores
+only the Google Cloud project name, OAuth Client ID, redirect URI, and email list in
+`data/google_oauth_qa.json`. It never stores a Client Secret.
+
+Each address must first be a real Google Account. Google supports signing up with an
+existing non-Gmail address by choosing **Use your existing email** and verifying the
+code delivered to that mailbox. Then, for an External app in Testing mode, add those
+Google Accounts manually under Google Auth Platform → Audience → Test users. SIMURU
+does not automate Google Account creation or bypass Google's account-security flow.
+
+Official guides: [Create a Google Account using an existing email](https://support.google.com/accounts/answer/27441)
+and [Configure OAuth consent / test users](https://developers.google.com/workspace/guides/configure-oauth-consent).
+
+
+### Integrated five-mailbox → Google OAuth QA workflow
+
+The Mailbox Manager accepts an optional shared password in its dashboard field or
+from local `QA_MAILBOX_MASTER_PASSWORD`. If it is left blank, SIMURU generates a
+strong random password per mailbox, preserving the previous successful flow. A
+password entered in the dashboard is kept in the local Streamlit session; a persistent
+value belongs only in your ignored `.env` file. Example placeholder:
+
+```dotenv
+QA_MAILBOX_MASTER_PASSWORD=<your-local-temporary-password>
+```
+
+The five mailboxes already created with random passwords can be found with **Refresh existing mailbox list**, selected in the dashboard, and reset with **Set same password for selected existing mailboxes** after the cPanel session is verified. The current batch can also be reset with **Set same password for these 5 mailboxes**.
+New batches use the configured password from the start. This shared password is only
+for short-lived QA and should be rotated after testing.
+
+Once all five mailboxes are verified, the same Mailbox Manager shows **Google OAuth
+Registration QA**. Enter the authorized staging/local registration URL, select one
+of the five test identities, confirm the Google Accounts are already set up and added
+as OAuth Test Users, then inspect the page and open it in Chromium. Google account
+selection, consent, CAPTCHA and MFA remain manual; this flow does not create Google
+Accounts from mailboxes.
+
+
+### Google OAuth registration launcher
+
+After the five mailbox batch is verified and the five addresses have been created as
+Google Accounts and added to OAuth Test Users, enter the authorized registration URL.
+SIMURU will inspect the page, let you choose a detected Google sign-in control, then
+open the page and click that control in local Chromium. Complete Google sign-in,
+account selection, consent, CAPTCHA, and MFA manually. The target app must implement
+the OAuth callback that validates Google's ID token and creates or links its local user.
+
+This launcher does not create Google Accounts. A mailbox address alone is not a
+Google Account.
