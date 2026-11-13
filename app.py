@@ -369,6 +369,63 @@ with mailbox_tab:
             with st.expander("Detail diagnostik UAPI (session ID disamarkan)"):
                 st.json(diagnostics)
 
+        st.markdown("**Existing QA mailboxes**")
+        if st.button("Refresh existing mailbox list", key="refresh_existing_mailboxes"):
+            try:
+                st.session_state["existing_qa_mailboxes"] = cpanel_manager.list_domain_mailboxes()
+                st.session_state["mailbox_workflow_alert"] = {
+                    "kind": "success",
+                    "message": (
+                        f"Ditemukan {len(st.session_state['existing_qa_mailboxes'])} mailbox "
+                        f"dengan prefix {cpanel_manager.prefix} pada domain {cpanel_manager.domain}."
+                    ),
+                }
+            except MailboxError as exc:
+                st.session_state["mailbox_workflow_alert"] = {
+                    "kind": "error",
+                    "message": str(exc),
+                }
+
+        existing_qa_mailboxes = st.session_state.get("existing_qa_mailboxes", [])
+        if existing_qa_mailboxes:
+            selected_existing_mailboxes = st.multiselect(
+                "Pilih mailbox lama yang ingin disamakan password-nya",
+                options=existing_qa_mailboxes,
+                max_selections=5,
+                key="selected_existing_qa_mailboxes",
+            )
+            if mailbox_password_input and selected_existing_mailboxes:
+                if st.button(
+                    "Set same password for selected existing mailboxes",
+                    key="reset_selected_existing_mailboxes",
+                    use_container_width=True,
+                ):
+                    try:
+                        with st.spinner("Memperbarui password mailbox terpilih..."):
+                            reset_rows = cpanel_manager.reset_mailbox_passwords(
+                                selected_existing_mailboxes
+                            )
+                        if reset_rows and all(row["status"] == "updated" for row in reset_rows):
+                            st.session_state["mailbox_workflow_alert"] = {
+                                "kind": "success",
+                                "message": (
+                                    f"Password berhasil diperbarui untuk {len(reset_rows)} mailbox. "
+                                    "Simpan password ini dengan aman."
+                                ),
+                            }
+                        else:
+                            st.session_state["mailbox_workflow_alert"] = {
+                                "kind": "error",
+                                "message": "Sebagian mailbox gagal diubah: " + str(reset_rows),
+                            }
+                    except MailboxError as exc:
+                        st.session_state["mailbox_workflow_alert"] = {
+                            "kind": "error",
+                            "message": str(exc),
+                        }
+        elif session_ready:
+            st.caption("Klik Refresh existing mailbox list untuk memuat mailbox QA yang sudah ada.")
+
         if st.button(
             "Create 5 New Emails",
             type="primary",
@@ -436,15 +493,17 @@ with mailbox_tab:
                         if reset_rows and all(row["status"] == "updated" for row in reset_rows):
                             for mailbox_row in mailbox_rows:
                                 if mailbox_row.get("status") == "created":
-                                    mailbox_row["password"] = os.getenv("QA_MAILBOX_MASTER_PASSWORD", "")
+                                    mailbox_row["password"] = mailbox_password_input
                             st.session_state["latest_mailbox_batch"] = mailbox_rows
                             st.session_state["mailbox_workflow_alert"] = {
                                 "kind": "success",
                                 "message": "Password mailbox berhasil diseragamkan. Download ulang CSV agar berisi password terbaru.",
                             }
                         else:
-                            st.warning("Sebagian password belum berhasil diperbarui.")
-                            st.dataframe(pd.DataFrame(reset_rows), hide_index=True)
+                            st.session_state["mailbox_workflow_alert"] = {
+                                "kind": "error",
+                                "message": "Sebagian password belum berhasil diperbarui: " + str(reset_rows),
+                            }
                     except MailboxError as exc:
                         st.session_state["mailbox_workflow_alert"] = {
                             "kind": "error",
