@@ -5,9 +5,9 @@ import re
 import secrets
 import subprocess
 import time
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from collections.abc import Iterator
 from typing import Any
 from urllib.error import URLError
 from urllib.request import urlopen
