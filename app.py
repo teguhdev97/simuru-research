@@ -304,7 +304,7 @@ with mailbox_tab:
             prefix="qa",
             quota_mb=50,
         )
-        c1, c2 = st.columns(2)
+        c1, c2, c3 = st.columns(3)
         with c1:
             if st.button("Connect cPanel", type="primary", use_container_width=True):
                 current_url = cpanel_manager.connect()
@@ -313,6 +313,17 @@ with mailbox_tab:
                     "lalu kembali ke tab ini."
                 )
         with c2:
+            if st.button("Check cPanel Session", use_container_width=True):
+                with st.spinner("Memeriksa akses UAPI cPanel..."):
+                    status = cpanel_manager.session_status()
+                if status.get("connected"):
+                    st.success(status["message"])
+                else:
+                    st.error(status["message"])
+                for diagnostic in status.get("diagnostics", []):
+                    with st.expander("Detail pemeriksaan (session ID disamarkan)"):
+                        st.json(diagnostic)
+        with c3:
             if st.button("Close cPanel browser", use_container_width=True):
                 cpanel_manager.close()
                 st.success("Logout cPanel dijalankan, cookie lokal dibersihkan, dan browser ditutup.")
