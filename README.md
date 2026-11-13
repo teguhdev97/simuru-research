@@ -425,7 +425,7 @@ consistent temporary password. Put it only in your ignored local `.env` file, no
 in GitHub. For the requested test value, add this line locally:
 
 ```dotenv
-QA_MAILBOX_MASTER_PASSWORD=Standard@321!
+QA_MAILBOX_MASTER_PASSWORD=<your-local-temporary-password>
 ```
 
 The five mailboxes already created with random passwords can be selected and reset
