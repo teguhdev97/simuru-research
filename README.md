@@ -79,7 +79,7 @@ From the repository root, start the pinned Mailpit container:
 podman run -d --name simuru-mailpit -p 127.0.0.1:1025:1025 -p 127.0.0.1:8025:8025 ghcr.io/axllent/mailpit:v1.33.1
 ~~~
 
-If you use Docker instead of Podman, replace \`podman\` with \`docker\`.
+If you use Docker instead of Podman, replace `podman` with `docker`.
 
 Alternatively, use the included Compose file with a compatible Compose provider:
 
@@ -100,12 +100,12 @@ Open the local Mailpit inbox:
 http://127.0.0.1:8025
 ~~~
 
-Mailpit SMTP listens on \`127.0.0.1:1025\`; its REST API listens on
-\`http://127.0.0.1:8025\`. Both published ports are bound to loopback only.
+Mailpit SMTP listens on `127.0.0.1:1025`; its REST API listens on
+`http://127.0.0.1:8025`. Both published ports are bound to loopback only.
 
 ### Configure Simuru Research
 
-Add these values to your local \`.env\` file. Do not commit \`.env\`:
+Add these values to your local `.env` file. Do not commit `.env`:
 
 ~~~env
 MAILPIT_SMTP_HOST=127.0.0.1
@@ -117,21 +117,21 @@ MAILPIT_POLL_TIMEOUT_SECONDS=15
 MAILPIT_POLL_INTERVAL_SECONDS=0.25
 ~~~
 
-The defaults are also listed in \`.env.example\`. Restart Streamlit after changing
+The defaults are also listed in `.env.example`. Restart Streamlit after changing
 environment variables.
 
 ### Run the Mailpit email QA flow
 
 1. Start Mailpit.
-2. Start the dashboard with \`uv run streamlit run app.py\`.
+2. Start the dashboard with `uv run streamlit run app.py`.
 3. Open **Registration QA**.
 4. Keep **Mailpit SMTP** selected.
 5. Click **Check Mailpit connection**; both SMTP and HTTP API must be reachable.
 6. Run a small batch first (for example, 2 QA users) and inspect the captured emails at
-   \`http://127.0.0.1:8025\`.
+   `http://127.0.0.1:8025`.
 7. Increase to 40 QA users after the small test passes.
 
-Each QA email includes a \`SIMURU-QA-OTP\` marker used by the integration test to
+Each QA email includes a `SIMURU-QA-OTP` marker used by the integration test to
 extract the code from the message body. The runner checks that the received code
 matches the code issued by the local application before completing email verification.
 
