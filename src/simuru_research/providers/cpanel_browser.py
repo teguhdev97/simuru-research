@@ -7,7 +7,8 @@ import subprocess
 import time
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Iterator
+from collections.abc import Iterator
+from typing import Any
 from urllib.error import URLError
 from urllib.request import urlopen
 
@@ -43,7 +44,9 @@ class CpanelBrowserMailboxManager:
         self.quota_mb = quota_mb
         self.profile_dir = Path(profile_dir)
         self.debug_port = debug_port
-        self.mailbox_password = mailbox_password or os.getenv("QA_MAILBOX_MASTER_PASSWORD", "").strip()
+        self.mailbox_password = mailbox_password or os.getenv(
+            "QA_MAILBOX_MASTER_PASSWORD", ""
+        ).strip()
         self.credential_vault = credential_vault or MailboxCredentialVault()
 
         if not self.cpanel_url.startswith("https://"):
