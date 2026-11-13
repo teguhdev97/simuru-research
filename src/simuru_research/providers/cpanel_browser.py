@@ -169,9 +169,10 @@ class CpanelBrowserMailboxManager:
                 return {"connected": False, "message": "Buka halaman cPanel port 2083."}
             probe = page.evaluate(
                 """async (domain) => {
-                  const response = await fetch('/execute/Email/list_pops?domain=' + encodeURIComponent(domain), {
-                    credentials: 'same-origin'
-                  });
+                  const match = location.pathname.match(/^\\/cpsess[^/]+/);
+                  if (!match) return {ok: false, reason: 'cPanel session prefix not found'};
+                  const endpoint = match[0] + '/execute/Email/list_pops?domain=' + encodeURIComponent(domain);
+                  const response = await fetch(endpoint, {credentials: 'same-origin'});
                   if (!response.ok) return {ok: false, status: response.status};
                   const payload = await response.json();
                   return {ok: payload?.result?.status === 1};
@@ -196,9 +197,10 @@ class CpanelBrowserMailboxManager:
 
         existing = page.evaluate(
             """async (domain) => {
-              const response = await fetch('/execute/Email/list_pops?domain=' + encodeURIComponent(domain), {
-                credentials: 'same-origin'
-              });
+              const match = location.pathname.match(/^\\/cpsess[^/]+/);
+              if (!match) throw new Error('cPanel session prefix not found in URL');
+              const endpoint = match[0] + '/execute/Email/list_pops?domain=' + encodeURIComponent(domain);
+              const response = await fetch(endpoint, {credentials: 'same-origin'});
               if (!response.ok) throw new Error('list_pops HTTP ' + response.status);
               return await response.json();
             }""",
@@ -231,7 +233,9 @@ class CpanelBrowserMailboxManager:
                     quota: String(quota),
                     send_welcome_email: '0'
                   });
-                  const response = await fetch('/execute/Email/add_pop?' + params.toString(), {
+                  const match = location.pathname.match(/^\\/cpsess[^/]+/);
+                  if (!match) throw new Error('cPanel session prefix not found in URL');
+                  const response = await fetch(match[0] + '/execute/Email/add_pop?' + params.toString(), {
                     method: 'GET',
                     credentials: 'same-origin'
                   });
