@@ -134,9 +134,28 @@ The dashboard includes:
 2. **Team Accounts** — add, import, inspect, and export metadata for existing team-owned accounts.
 3. **Sandbox Batch** — synthetic identity/concurrency checks.
 4. **Mailbox Manager** — opens a local persistent cPanel browser session and creates eight new mailboxes on the configured owned domain.
-5. **Registration QA** — run 40 local registration, email verification, SMS verification, and login workflows.
-6. **Run History & Export** — inspect previous runs and download CSV.
-7. **SIMURU API** — browse account profile, balance, services, countries, prices, and country insights.
+5. **Website Automation** — visually configure and save website QA profiles locally; no JSON editing required.
+6. **Registration QA** — run 40 local registration, email verification, SMS verification, and login workflows.
+7. **Run History & Export** — inspect previous runs and download CSV.
+8. **SIMURU API** — browse account profile, balance, services, countries, prices, and country insights.
+
+## Website Automation (visual configuration)
+
+The **Website Automation** tab provides a form-based profile manager. Add a website
+name, HTTPS base URL (or localhost), registration path, authentication method, CSS
+selectors for form fields, and whether Google OAuth flow testing is part of the QA plan.
+Save, select, preview, or delete profiles in the dashboard.
+
+Profiles are stored locally in `data/website_profiles.json`, which is covered by
+`.gitignore`. No manual JSON editing is required. Remote sites must use HTTPS.
+A profile must explicitly confirm ownership or authorization before it can be considered
+eligible for future QA execution.
+
+This initial release is a **configuration manager only**: it does not submit external
+registration forms, create Google Accounts, or automate sign-in to third-party services.
+OAuth client credentials and secrets are not collected by this profile form. For an
+application you own, configure its OAuth client and redirect URI separately in Google
+Auth Platform and keep client secrets in local secret storage.
 
 ## Team Account Registry
 
