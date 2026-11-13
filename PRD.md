@@ -48,7 +48,7 @@ SIMURU Research is a local-first, configurable QA workbench. Users configure tar
 4. User signs into their own cPanel manually.
 5. User returns to Streamlit and clicks Check cPanel Session.
 6. SIMURU probes UAPI on all matching cPanel tabs.
-7. Dashboard reports either verified UAPI access or a precise, redacted reason.
+7. Dashboard reports either verified UAPI access or a precise, redacted reason.\n8. The status panel polls every three seconds so login is reflected without a manual refresh.
 
 **Acceptance criteria**
 - The check does not require creating a mailbox.
@@ -74,7 +74,7 @@ SIMURU Research is a local-first, configurable QA workbench. Users configure tar
 - Generated passwords are unique and cryptographically random.
 - Credentials are not written to logs or persistent run history.
 - The operation is bounded by a configurable maximum.
-- The current legacy action creates eight mailboxes; future batch-size controls must preserve a safe hard limit.
+- The current action creates exactly five mailboxes; the UI must not expose a larger batch size.
 
 ### 5.3 Close cPanel session
 
@@ -107,7 +107,22 @@ SIMURU Research is a local-first, configurable QA workbench. Users configure tar
 - Inspection failures explain whether the page was inaccessible, timed out, or had no recognizable controls.
 - User can edit suggested selectors before saving.
 
-### 5.5 OAuth QA for an owned application
+### 5.5 Google OAuth test-user preparation
+
+1. The dashboard reveals this step only after exactly five mailbox addresses are created and verified.
+2. The user confirms each mailbox can receive email.
+3. The owner creates or links each mailbox address to a Google Account manually using Google's existing-email signup flow.
+4. The owner manually adds those Google Accounts under Google Auth Platform → Audience → Test users.
+5. SIMURU stores the project name, Client ID, redirect URI, and five email addresses locally; it never stores a Client Secret.
+
+**Acceptance criteria**
+- The panel is hidden when fewer than five mailboxes are verified.
+- It provides a downloadable list of the five email addresses.
+- It clearly explains that a mailbox is not automatically a Google Account.
+- It never automates Google Account creation or circumvents CAPTCHA, MFA, or account protections.
+- It never stores OAuth Client Secret.
+
+### 5.6 OAuth QA for an owned application
 
 1. User configures the application's own Google OAuth client in Google Auth Platform.
 2. User configures authorized redirect URIs and test users.
@@ -139,7 +154,7 @@ SIMURU Research is a local-first, configurable QA workbench. Users configure tar
 | FR-010 | Website profiles persist locally | P0 |
 | FR-011 | OAuth QA configuration supports owned applications | P1 |
 | FR-012 | QA run history and CSV export | P1 |
-| FR-013 | Project and PRD documents stay current | P0 |
+| FR-013 | Project and PRD documents stay current | P0 |\n| FR-014 | Session status automatically refreshes while the Mailbox Manager is open | P0 |\n| FR-015 | Create exactly five mailboxes and verify all five before revealing Google OAuth preparation | P0 |
 
 ## 7. Non-functional requirements
 
@@ -203,7 +218,7 @@ Never expose:
 ### M0 — Stabilize cPanel connection
 - [x] Add cPanel browser-session mode.
 - [x] Add UAPI session check.
-- [ ] Verify session check on Rumahweb account.
+- [x] Auto-refresh session status every three seconds and show detailed UAPI diagnostics.\n- [ ] Verify session check on Rumahweb account.
 - [ ] Add mocked tests for UAPI response cases.
 - [ ] Confirm server-side logout behavior.
 
@@ -214,7 +229,7 @@ Never expose:
 - [ ] Add iframe-aware inspection.
 
 ### M2 — Mailbox workflow
-- [x] Create mailbox batch through cPanel UAPI.
+- [x] Create exactly five mailboxes through cPanel UAPI and gate OAuth preparation on five-of-five verification.
 - [x] Verify created addresses with list operation.
 - [ ] Add batch-size control and hard cap.
 - [ ] Add IMAP connectivity test.
@@ -253,3 +268,12 @@ A feature is complete only when:
 - secrets and session IDs are redacted;
 - docs are updated;
 - no external resource-creating action is claimed tested unless it was actually exercised in an authorized environment.
+
+
+### M3 — Google OAuth test-user preparation
+- [x] Reveal the preparation panel only after a verified five-mailbox batch.
+- [x] Export the five email addresses for Google Auth Platform Test Users.
+- [x] Save non-secret OAuth metadata locally.
+- [ ] Verify each mailbox as a Google Account manually.
+- [ ] Add the five Google Accounts under Audience → Test users.
+- [ ] Implement and test the OAuth callback in the owned application.
