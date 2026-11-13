@@ -133,9 +133,10 @@ The dashboard includes:
 1. **Overview** — team account counts and latest QA run.
 2. **Team Accounts** — add, import, inspect, and export metadata for existing team-owned accounts.
 3. **Sandbox Batch** — synthetic identity/concurrency checks.
-4. **Registration QA** — run 40 local registration, email verification, SMS verification, and login workflows.
-5. **Run History & Export** — inspect previous runs and download CSV.
-6. **SIMURU API** — browse account profile, balance, services, countries, prices, and country insights.
+4. **Mailbox Manager** — opens a local persistent cPanel browser session and creates eight new mailboxes on the configured owned domain.
+5. **Registration QA** — run 40 local registration, email verification, SMS verification, and login workflows.
+6. **Run History & Export** — inspect previous runs and download CSV.
+7. **SIMURU API** — browse account profile, balance, services, countries, prices, and country insights.
 
 ## Team Account Registry
 
@@ -292,6 +293,33 @@ five addresses in SQLite run history. It does not submit website registration fo
 See [docs/local-mailbox-qa.md](docs/local-mailbox-qa.md) for cPanel API token setup,
 Windows configuration, mailbox naming, IMAP settings, and sender-allowlisted OTP
 reader behavior. Keep cPanel tokens and mailbox master secrets in `.env` only.
+
+## Mailbox Manager (eight local cPanel mailboxes)
+
+The **Mailbox Manager** tab opens a persistent, visible Chromium profile on the local
+Windows laptop. Sign in manually to your own Rumahweb cPanel, then click **Create 8 New
+Emails**. SIMURU uses same-origin cPanel UAPI calls to list existing mailboxes, create
+eight unique addresses, and verify the result.
+
+- No cPanel API token is required for this browser-session mode.
+- The cPanel password, cookies, and `cpsess` token are never copied into application
+  settings, logs, or GitHub.
+- The browser profile is stored under `data/cpanel-browser-profile` and is ignored by Git.
+- Each mailbox receives a distinct random password. Download the one-time CSV result
+  and store it securely; the passwords are not saved in the SQLite run history.
+- Use only a cPanel account and domain you own or are authorized to administer.
+
+Install and run:
+
+~~~powershell
+uv sync --extra dev
+uv run playwright install chromium
+uv run streamlit run app.py
+~~~
+
+Open **Mailbox Manager**, click **Connect cPanel**, complete login in Chromium, return
+to Streamlit, then click **Create 8 New Emails**. See
+[docs/mailbox-manager.md](docs/mailbox-manager.md).
 
 ## Browser Form QA (Selenium)
 
