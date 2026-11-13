@@ -439,6 +439,53 @@ class CpanelBrowserMailboxManager:
                         )
             return created
 
+    def reset_mailbox_passwords(self, emails: list[str]) -> list[dict[str, str]]:
+        """Reset up to five explicitly selected QA mailboxes to the local master password."""
+        if len(self.mailbox_password) < 12:
+            raise MailboxError("QA_MAILBOX_MASTER_PASSWORD belum diatur di .env lokal.")
+        normalized = [email.strip().lower() for email in emails]
+        if not normalized or len(normalized) > 5 or len(set(normalized)) != len(normalized):
+            raise MailboxError("Pilih satu sampai lima alamat mailbox yang unik.")
+        if any(not email.endswith("@" + self.domain) for email in normalized):
+            raise MailboxError("Reset hanya diizinkan untuk mailbox pada domain QA ini.")
+        results: list[dict[str, str]] = []
+        with self._attached_browser() as (_, _, pages):
+            page, _ = self._find_authenticated_page(pages)
+            if page is None:
+                raise MailboxError("Sesi cPanel belum terverifikasi.")
+            existing = {str(row.get("email", "")).lower() for row in self._list_mailboxes(page) if isinstance(row, dict)}
+            for email in normalized:
+                if email not in existing:
+                    results.append({"email": email, "status": "not_found"})
+                    continue
+                local_part = email.rsplit("@", 1)[0]
+                payload = page.evaluate(
+                    """async ({localPart, domain, password}) => {
+                      const match = location.pathname.match(/^\\/cpsess[^/]+/);
+                      if (!match) throw new Error('Prefix sesi cPanel tidak ditemukan.');
+                      const params = new URLSearchParams({email: localPart, domain, password});
+                      const response = await fetch(match[0] + '/execute/Email/passwd_pop?' + params.toString(),
+                        {method: 'GET', credentials: 'same-origin', cache: 'no-store'});
+                      if (!response.ok) throw new Error('passwd_pop HTTP ' + response.status);
+                      return await response.json();
+                    }""",
+                    {"localPart": local_part, "domain": self.domain, "password": self.mailbox_password},
+                )
+                results.append({"email": email, "status": "updated" if self._uapi_succeeded(payload) else "failed"})
+        return results
+
+    def open_website_for_oauth_qa(self, url: str) -> str:
+        """Open an authorized staging/local registration page for manual Google OAuth QA."""
+        from urllib.parse import urlparse
+        parsed = urlparse(url.strip())
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            raise MailboxError("Masukkan URL website HTTP(S) yang valid.")
+        if parsed.scheme != "https" and parsed.hostname not in {"localhost", "127.0.0.1"}:
+            raise MailboxError("Website remote harus menggunakan HTTPS.")
+        with self._attached_browser() as (_, context, _):
+            page = context.new_page()
+            page.goto(url, wait_until="domcontentloaded", timeout=30_000)
+        return "Halaman pengujian dibuka di Chromium untuk proses OAuth manual."
     def close(self) -> dict[str, str]:
         """Attempt server-side cPanel logout, clear cookies, then close Chromium."""
         logout_confirmed = False
