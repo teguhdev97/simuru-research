@@ -1,17 +1,39 @@
 [project]
 name = "simuru-research"
-version = "0.1.0"
-description = "Add your description here"
+version = "0.2.0"
+description = "Local Simuru API connectivity research and sandbox QA dashboard"
 readme = "README.md"
 authors = [
-    { name = "linuxguh", email = "linuxguh@gmail.com" }
+    { name = "Teguh" }
 ]
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "httpx>=0.28,<1",
+    "pandas>=2.2,<4",
+    "python-dotenv>=1.1,<2",
+    "streamlit>=1.40,<2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3,<10",
+    "ruff>=0.11,<1",
+]
 
 [project.scripts]
-simuru-research = "simuru_research:main"
+simuru-research = "simuru_research.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.12.20,<0.13.0"]
 build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
