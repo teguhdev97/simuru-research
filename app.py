@@ -756,10 +756,11 @@ with mailbox_tab:
                         key="start_google_oauth_registration",
                     ):
                         if not st.session_state.get("integrated_oauth_accounts_ready", False):
-                            st.error(
-                                "Untuk jalur Google, kelima email harus sudah menjadi Google "
-                                "Account dan terdaftar sebagai OAuth Test Users."
+                            st.warning(
+                                "Google Account belum disiapkan untuk OAuth. "
+                                "SIMURU beralih ke pendaftaran email."
                             )
+                            run_email_registration_fallback()
                         else:
                             try:
                                 message = cpanel_manager.start_google_oauth_flow(
