@@ -168,6 +168,32 @@ class ImapOTPReader:
         self.settings = settings
         self.credential_vault = credential_vault or MailboxCredentialVault()
 
+    def check_connection(self, destination: str) -> None:
+        """Authenticate to IMAP and select INBOX without requiring an OTP email."""
+        normalized = destination.strip().lower()
+        if not normalized.endswith("@" + self.settings.domain.lower()):
+            raise MailboxError("Destination is outside the configured QA domain.")
+        if not normalized.startswith(self.settings.prefix.lower() + "-"):
+            raise MailboxError("Destination does not use the configured QA mailbox prefix.")
+        password = (self.settings.mailbox_passwords or {}).get(normalized)
+        password = password or self.credential_vault.get(normalized)
+        if not password:
+            raise MailboxError("Mailbox credential is missing from the local credential vault.")
+        try:
+            with imaplib.IMAP4_SSL(
+                self.settings.imap_host,
+                self.settings.imap_port,
+                ssl_context=ssl.create_default_context(),
+                timeout=15,
+            ) as client:
+                client.login(normalized, password)
+                status, _ = client.select("INBOX", readonly=True)
+                if status != "OK":
+                    raise MailboxError("IMAP login succeeded, but INBOX could not be selected.")
+                client.logout()
+        except (imaplib.IMAP4.error, OSError) as exc:
+            raise MailboxError(f"IMAP connection/authentication failed: {type(exc).__name__}") from exc
+
     def wait_for_otp(
         self,
         destination: str,
