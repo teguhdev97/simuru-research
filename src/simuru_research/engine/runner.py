@@ -18,8 +18,8 @@ class BatchRunner:
         self.provider = SandboxProvider()
 
     def run_batch(self, *, total_jobs: int = 40, max_workers: int = 3) -> BatchSummary:
-        if not 1 <= total_jobs <= 200:
-            raise ValueError("total_jobs must be between 1 and 200.")
+        if not 1 <= total_jobs <= 100:
+            raise ValueError("total_jobs must be between 1 and 100.")
         if not 1 <= max_workers <= 10:
             raise ValueError("max_workers must be between 1 and 10.")
 
