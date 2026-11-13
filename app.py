@@ -19,8 +19,8 @@ st.caption("Read-only API connectivity · Local sandbox QA · SQLite history")
 with st.sidebar:
     st.subheader("Run configuration")
     total_jobs = st.number_input(
-        "Synthetic test users", min_value=1, max_value=200,
-        value=min(settings.default_total_jobs, 200), step=1
+        "Synthetic test users", min_value=1, max_value=100,
+        value=min(settings.default_total_jobs, 100), step=1
     )
     max_workers = st.number_input(
         "Concurrent workers", min_value=1, max_value=10,
