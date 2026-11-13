@@ -663,14 +663,17 @@ with mailbox_tab:
             st.subheader("Google OAuth Registration QA")
             st.success("Lima mailbox berhasil dibuat dan diverifikasi.")
             test_emails = [str(row["email"]) for row in mailbox_rows]
-            st.caption("Setiap alamat harus sudah menjadi Google Account dan ditambahkan ke Google Auth Platform → Audience → Test users.")
-            st.code("\\n".join(test_emails), language="text")
+            st.caption(
+                "Jalur Google membutuhkan Google Accounts yang sudah ditambahkan ke OAuth Test Users. "
+                "Jalur fallback email tidak membutuhkan Google Account."
+            )
+            st.code("\n".join(test_emails), language="text")
             with st.form("integrated_google_oauth_qa_form"):
                 target_url = st.text_input("Website registration URL", placeholder="https://your-staging-site.example/register")
-                selected_test_email = st.selectbox("Google test account", test_emails)
+                selected_test_email = st.selectbox("Google test account (OAuth only)", test_emails)
                 owns_target = st.checkbox("Saya memiliki website ini atau memiliki izin eksplisit untuk menjalankan QA.")
-                accounts_ready = st.checkbox("Kelima alamat sudah menjadi Google Account dan ditambahkan ke OAuth Test Users.")
-                inspect_and_save = st.form_submit_button("Inspect website & prepare Google OAuth test", type="primary", use_container_width=True)
+                accounts_ready = st.checkbox("Kelima alamat sudah menjadi Google Account dan ditambahkan ke OAuth Test Users (OAuth only).")
+                inspect_and_save = st.form_submit_button("Inspect website & prepare registration QA", type="primary", use_container_width=True)
             if inspect_and_save:
                 if not owns_target:
                     st.error("Konfirmasi kepemilikan/izin website sebelum menjalankan QA.")
