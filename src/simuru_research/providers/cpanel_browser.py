@@ -95,8 +95,8 @@ class CpanelBrowserMailboxManager:
         """Start/attach to visible Chromium; user signs in manually."""
         self.profile_dir.mkdir(parents=True, exist_ok=True)
         if not self._cdp_ready():
-            executable = Path(sync_playwright().start().chromium.executable_path)
-            # Stop the short-lived discovery driver before launching Chromium itself.
+            # Read the installed Playwright Chromium path, then stop the driver
+            # before launching the browser as an independent persistent process.
             probe = sync_playwright().start()
             executable = Path(probe.chromium.executable_path)
             probe.stop()
@@ -269,7 +269,9 @@ class CpanelBrowserMailboxManager:
         return created
 
     def close(self) -> None:
-        """Disconnect this Streamlit run without killing the persistent browser."""
+        """Close the persistent Chromium browser and release this Playwright client."""
+        if self._browser is not None and self._browser.is_connected():
+            self._browser.close()
         if self._playwright is not None:
             self._playwright.stop()
         self._playwright = None
