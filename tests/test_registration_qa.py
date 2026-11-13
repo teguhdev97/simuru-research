@@ -15,7 +15,7 @@ def test_registration_requires_both_verification_channels(tmp_path) -> None:
     phone = "+12025550101"
 
     service.register_user(
-        username="qa-user",
+        username="qa_user",
         email=email,
         phone=phone,
         password=PASSWORD,
