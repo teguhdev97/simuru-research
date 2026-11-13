@@ -185,3 +185,13 @@ Test Users**. This panel:
 Google Account creation and adding test users remain manual owner actions. An email
 mailbox by itself is not a Google Account. OAuth test-user entries must refer to
 actual Google Accounts. See PRD.md for acceptance criteria.
+
+
+## UAPI response envelope compatibility
+
+The cPanel session probe accepts:
+- documented UAPI JSON: `{ "result": { "status": 1, "data": ... } }`;
+- direct result envelope: `{ "status": 1, "data": ... }`;
+- legacy API 2 envelope: `{ "cpanelresult": { "event": { "result": 1 }, "data": ... } }`.
+
+Diagnostics expose only response shape metadata (`topLevelKeys`, `resultKeys`, `dataType`), HTTP status, and redacted error details. They must not reveal mailbox addresses or session IDs. The Python provider normalizes these envelopes before listing or creating mailboxes.
