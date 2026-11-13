@@ -66,6 +66,7 @@ class MailboxSettings:
                 ).split(",")
                 if item.strip()
             ),
+            mailbox_passwords={},
         )
 
     def validate_provisioning(self) -> None:
@@ -188,7 +189,8 @@ class ImapOTPReader:
 
         cutoff = since or (datetime.now(UTC) - timedelta(minutes=5))
         deadline = time.monotonic() + timeout_seconds
-        mailbox_password = self.credential_vault.get(destination)
+        mailbox_password = (self.settings.mailbox_passwords or {}).get(destination.lower())
+        mailbox_password = mailbox_password or self.credential_vault.get(destination)
         if not mailbox_password:
             raise MailboxError(
                 "Mailbox password is not available in Windows Credential Manager. "
@@ -256,7 +258,8 @@ class SmtpMailboxSender:
     def send_test(self, destination: str) -> None:
         if not destination.lower().endswith("@" + self.settings.domain.lower()):
             raise MailboxError("Destination is outside the configured QA domain.")
-        mailbox_password = self.credential_vault.get(destination)
+        mailbox_password = (self.settings.mailbox_passwords or {}).get(destination.lower())
+        mailbox_password = mailbox_password or self.credential_vault.get(destination)
         if not mailbox_password:
             raise MailboxError("Mailbox password is not available in Windows Credential Manager.")
         message = EmailMessage()
