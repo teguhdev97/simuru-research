@@ -280,3 +280,8 @@ A feature is complete only when:
 - [ ] Verify each mailbox as a Google Account manually.
 - [ ] Add the five Google Accounts under Audience → Test users.
 - [ ] Implement and test the OAuth callback in the owned application.
+
+
+### UAPI envelope compatibility
+
+The UAPI parser must support the documented nested `result.status` object and direct root-level `status/data/errors` responses. A legacy `cpanelresult.event.result` envelope may be recognized for diagnosis, but new requests continue to use UAPI. Session diagnostics include only structural keys and redacted errors; never dump raw response bodies, email account lists, or session URLs.
