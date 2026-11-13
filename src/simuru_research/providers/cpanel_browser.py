@@ -74,7 +74,13 @@ class CpanelBrowserMailboxManager:
             if contexts:
                 self._context = contexts[0]
                 pages = self._context.pages
-                self._page = pages[0] if pages else self._context.new_page()
+                cpanel_pages = [
+                    page for page in pages
+                    if "juwana.iixcp.rumahweb.net" in page.url and ":2083" in page.url
+                ]
+                self._page = cpanel_pages[0] if cpanel_pages else (
+                    pages[0] if pages else self._context.new_page()
+                )
                 return
 
         self._playwright = sync_playwright().start()
@@ -89,7 +95,13 @@ class CpanelBrowserMailboxManager:
         contexts = self._browser.contexts
         self._context = contexts[0] if contexts else self._browser.new_context()
         pages = self._context.pages
-        self._page = pages[0] if pages else self._context.new_page()
+        cpanel_pages = [
+            page for page in pages
+            if "juwana.iixcp.rumahweb.net" in page.url and ":2083" in page.url
+        ]
+        self._page = cpanel_pages[0] if cpanel_pages else (
+            pages[0] if pages else self._context.new_page()
+        )
 
     def connect(self) -> str:
         """Start/attach to visible Chromium; user signs in manually."""
