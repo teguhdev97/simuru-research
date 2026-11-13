@@ -480,7 +480,11 @@ with mailbox_tab:
         )
         if mailbox_rows:
             mailbox_frame = pd.DataFrame(mailbox_rows)
-            st.dataframe(mailbox_frame[["email", "status", "error"]], use_container_width=True, hide_index=True)
+            st.dataframe(
+                mailbox_frame[[column for column in ["email", "status", "credential_storage", "error"] if column in mailbox_frame.columns]],
+                use_container_width=True,
+                hide_index=True,
+            )
             st.download_button(
                 "Download 5 mailbox credentials (CSV)",
                 data=mailbox_frame.to_csv(index=False).encode("utf-8"),
