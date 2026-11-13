@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 import secrets
 import string
@@ -33,6 +34,7 @@ class CpanelBrowserMailboxManager:
         quota_mb: int = 50,
         profile_dir: str = "data/cpanel-browser-profile",
         debug_port: int = 9222,
+        mailbox_password: str | None = None,
     ) -> None:
         self.cpanel_url = cpanel_url.rstrip("/")
         self.domain = domain.lower()
@@ -40,6 +42,7 @@ class CpanelBrowserMailboxManager:
         self.quota_mb = quota_mb
         self.profile_dir = Path(profile_dir)
         self.debug_port = debug_port
+        self.mailbox_password = mailbox_password or os.getenv("QA_MAILBOX_MASTER_PASSWORD", "").strip()
 
         if not self.cpanel_url.startswith("https://"):
             raise MailboxError("cPanel must use HTTPS.")
@@ -326,6 +329,8 @@ class CpanelBrowserMailboxManager:
 
     def create_five(self) -> list[dict[str, str]]:
         """Create exactly five unique mailboxes, preserving partial results safely."""
+        if len(self.mailbox_password) < 12:
+            raise MailboxError("Atur QA_MAILBOX_MASTER_PASSWORD di .env lokal sebelum membuat mailbox.")
         with self._attached_browser() as (_, _, pages):
             page, diagnostics = self._find_authenticated_page(pages)
             if page is None:
@@ -343,7 +348,6 @@ class CpanelBrowserMailboxManager:
             }
 
             batch = secrets.token_hex(4)
-            alphabet = string.ascii_letters + string.digits + "!@#$%_-"
             created: list[dict[str, str]] = []
             for index in range(1, 6):
                 local_part = f"{self.prefix}-{batch}-{index:02d}"
@@ -357,7 +361,7 @@ class CpanelBrowserMailboxManager:
                     })
                     break
 
-                password = "".join(secrets.choice(alphabet) for _ in range(24)) + "aA9!"
+                password = self.mailbox_password
                 record = {
                     "email": address,
                     "password": password,
