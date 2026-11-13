@@ -12,15 +12,29 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Run local synthetic QA jobs for Simuru Research."
     )
-    parser.add_argument("--jobs", type=int, default=None, help="Number of synthetic jobs (1-200).")
-    parser.add_argument("--workers", type=int, default=None, help="Concurrent local workers (1-10).")
+    parser.add_argument(
+        "--jobs",
+        type=int,
+        default=None,
+        help="Number of synthetic jobs (1-200).",
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=None,
+        help="Concurrent local workers (1-10).",
+    )
     args = parser.parse_args()
 
     settings = Settings.from_env()
     repository = SQLiteRepository(settings.database_path)
     summary = BatchRunner(repository).run_batch(
-        total_jobs=args.jobs or settings.default_total_jobs,
-        max_workers=args.workers or settings.default_max_workers,
+        total_jobs=(
+            settings.default_total_jobs if args.jobs is None else args.jobs
+        ),
+        max_workers=(
+            settings.default_max_workers if args.workers is None else args.workers
+        ),
     )
 
     print(
