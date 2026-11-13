@@ -70,18 +70,27 @@ def test_uapi_succeeded_rejects_error_envelopes():
 
 
 
-def test_create_five_requires_local_password_before_browser_access():
+def test_create_five_manager_allows_empty_password_for_random_generation():
     manager = CpanelBrowserMailboxManager(
         cpanel_url="https://cpanel.example.test:2083",
         domain="teguhharits.com",
         mailbox_password="",
     )
-    try:
-        manager.create_five()
-    except Exception as exc:
-        assert "QA_MAILBOX_MASTER_PASSWORD" in str(exc)
-    else:
-        raise AssertionError("Mailbox creation must require an explicit local password")
+    assert manager.mailbox_password == ""
+    generated = manager._generate_mailbox_password()
+    assert len(generated) >= 20
+    assert any(char.islower() for char in generated)
+    assert any(char.isupper() for char in generated)
+    assert any(char.isdigit() for char in generated)
+
+
+def test_create_five_manager_keeps_configured_shared_password():
+    manager = CpanelBrowserMailboxManager(
+        cpanel_url="https://cpanel.example.test:2083",
+        domain="teguhharits.com",
+        mailbox_password="Standard@321!",
+    )
+    assert manager.mailbox_password == "Standard@321!"
 
 
 def test_reset_mailbox_passwords_rejects_other_domains():
