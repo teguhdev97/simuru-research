@@ -309,3 +309,15 @@ The UAPI parser must support the documented nested `result.status` object and di
 - The target application's OAuth callback is responsible for validating the ID token and creating/linking its own application account.
 - No Google Account creation or credential automation is included.
 - Keep email/password authentication in the target application's own implementation; do not treat mailbox passwords as Google or target-site passwords.
+
+
+### 5.10 Single-source mailbox credential handling and IMAP
+
+- The browser-session cPanel manager generates or accepts the mailbox password and uses that exact value for UAPI creation.
+- Passwords for verified mailboxes are saved in the local OS credential manager (Windows Credential Manager via keyring), never in SQLite, logs, Markdown, or Git.
+- IMAP and optional SMTP read the exact password for the selected mailbox from this credential store or a one-run in-memory batch handoff.
+- IMAP connection check authenticates and selects INBOX without waiting for an OTP.
+- OTP polling is separate, bounded to 300 seconds, checks only unseen messages after a cutoff, and requires exact configured sender allowlisting plus subject keywords.
+- SMTP is optional; it is not required to read incoming verification email.
+- The browser-session cPanel flow does not require `QA_CPANEL_API_TOKEN`. The legacy API-token provisioner remains a separate provider and must not be mixed implicitly with browser-created mailbox credentials.
+- Existing mailboxes can be imported into Windows Credential Manager from their saved credential CSV; the dashboard must never persist plaintext password in its run history.
