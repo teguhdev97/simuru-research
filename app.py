@@ -302,12 +302,37 @@ with mailbox_tab:
         "Mode browser-session tidak memerlukan cPanel API Token. "
         "Password cPanel dan cpsess tidak disimpan di .env atau GitHub."
     )
+    env_mailbox_password = os.getenv("QA_MAILBOX_MASTER_PASSWORD", "").strip()
+    mailbox_password_input = st.text_input(
+        "Shared QA mailbox password (optional)",
+        value=env_mailbox_password,
+        type="password",
+        placeholder="Kosongkan untuk password acak unik",
+        help=(
+            "Isi Standard@321! untuk menyamakan password sementara. "
+            "Field ini hanya berada di sesi dashboard; .env lokal lebih cocok untuk konfigurasi tetap."
+        ),
+        key="qa_mailbox_password_input",
+    ).strip()
+    if not mailbox_password_input and not st.session_state.get("mailbox_password_notice_dismissed", False):
+        with st.container(border=True):
+            notice_col, dismiss_col = st.columns([8, 1])
+            with notice_col:
+                st.warning(
+                    "Password seragam belum diatur. Pembuatan tetap bisa berjalan dengan "
+                    "password acak dan unik untuk setiap mailbox; kredensial tersedia melalui CSV."
+                )
+            with dismiss_col:
+                if st.button("Dismiss", key="dismiss_mailbox_password_notice"):
+                    st.session_state["mailbox_password_notice_dismissed"] = True
+                    st.rerun()
+
     cpanel_manager = CpanelBrowserMailboxManager(
         cpanel_url="https://juwana.iixcp.rumahweb.net:2083",
         domain="teguhharits.com",
         prefix="qa",
         quota_mb=50,
-        mailbox_password=os.getenv("QA_MAILBOX_MASTER_PASSWORD", ""),
+        mailbox_password=mailbox_password_input,
     )
 
     c1, c2 = st.columns(2)
@@ -365,7 +390,20 @@ with mailbox_tab:
                         "Tahap Google OAuth belum dibuka."
                     )
             except MailboxError as exc:
-                st.error(str(exc))
+                st.session_state["mailbox_workflow_alert"] = {
+                    "kind": "error",
+                    "message": str(exc),
+                }
+
+        alert = st.session_state.get("mailbox_workflow_alert")
+        if alert:
+            if alert.get("kind") == "error":
+                st.error(alert.get("message", "Mailbox operation failed."))
+            elif alert.get("kind") == "success":
+                st.success(alert.get("message", "Mailbox operation completed."))
+            if st.button("Dismiss alert", key="dismiss_mailbox_workflow_alert"):
+                st.session_state.pop("mailbox_workflow_alert", None)
+                st.rerun()
 
         mailbox_rows = st.session_state.get("latest_mailbox_batch", [])
         batch_complete = (
@@ -381,7 +419,7 @@ with mailbox_tab:
                 file_name="simuru-five-mailboxes.csv",
                 mime="text/csv",
             )
-            if os.getenv("QA_MAILBOX_MASTER_PASSWORD", "").strip():
+            if mailbox_password_input:
                 if st.button("Set same password for these 5 mailboxes", use_container_width=True):
                     try:
                         with st.spinner("Memperbarui password mailbox di cPanel..."):
@@ -394,14 +432,17 @@ with mailbox_tab:
                                 if mailbox_row.get("status") == "created":
                                     mailbox_row["password"] = os.getenv("QA_MAILBOX_MASTER_PASSWORD", "")
                             st.session_state["latest_mailbox_batch"] = mailbox_rows
-                            st.success("Password mailbox berhasil diseragamkan. Download ulang CSV agar berisi password terbaru.")
+                            st.session_state["mailbox_workflow_alert"] = {
+                                "kind": "success",
+                                "message": "Password mailbox berhasil diseragamkan. Download ulang CSV agar berisi password terbaru.",
+                            }
                         else:
                             st.warning("Sebagian password belum berhasil diperbarui.")
                             st.dataframe(pd.DataFrame(reset_rows), hide_index=True)
                     except MailboxError as exc:
                         st.error(str(exc))
             else:
-                st.warning("Atur QA_MAILBOX_MASTER_PASSWORD di .env lokal untuk memakai password seragam.")
+                st.info("Password acak unik sedang digunakan. Isi field Shared QA mailbox password untuk menyamakan password kelima mailbox.")
 
         if batch_complete:
             st.divider()
