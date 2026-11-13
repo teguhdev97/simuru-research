@@ -9,6 +9,7 @@ from simuru_research.config.website_profiles import (
     WebsiteProfileStore,
     profile_registration_url,
 )
+from simuru_research.engine.form_inspector import FormInspectionError, inspect_form
 from simuru_research.engine.registration_qa import LocalRegistrationQARunner
 from simuru_research.engine.runner import BatchRunner
 from simuru_research.providers.cpanel_browser import CpanelBrowserMailboxManager
@@ -369,6 +370,61 @@ with website_tab:
             (item for item in saved_profiles if item.get("name") == selected_profile_name),
             {},
         )
+        selected_selectors = selected_profile.get("selectors", {})
+        if not isinstance(selected_selectors, dict):
+            selected_selectors = {}
+        for field in ("name", "email", "password", "confirm_password", "submit"):
+            st.session_state.setdefault(
+                f"website_selector_{field}", str(selected_selectors.get(field, ""))
+            )
+
+        st.markdown("**Automatic form inspection**")
+        inspect_url = st.text_input(
+            "Registration page URL to inspect",
+            value=(
+                f"{str(selected_profile.get('base_url', '')).rstrip('/')}"
+                f"{selected_profile.get('register_path', '/register')}"
+                if selected_profile else ""
+            ),
+            placeholder="https://your-staging-site.com/register",
+            key="website_inspect_url",
+        )
+        if st.button("Inspect Website & Auto-detect Selectors", type="secondary"):
+            try:
+                with st.spinner("Playwright is inspecting visible form fields..."):
+                    inspection = inspect_form(inspect_url)
+                st.session_state["website_inspection_result"] = inspection
+                for field, selector in inspection["selectors"].items():
+                    st.session_state[f"website_selector_{field}"] = selector
+                st.success(
+                    f"Inspected: {inspection['title'] or inspection['url']} · "
+                    f"{len(inspection['inputs'])} input fields detected."
+                )
+                st.rerun()
+            except FormInspectionError as exc:
+                st.error(str(exc))
+
+        inspection_result = st.session_state.get("website_inspection_result")
+        if inspection_result:
+            st.caption("Detected fields — review the suggested selectors before saving.")
+            detected_rows = [
+                {
+                    "Label": item.get("label", ""),
+                    "Type": item.get("type", ""),
+                    "Name": item.get("name", ""),
+                    "Suggested selector": item.get("selector", ""),
+                }
+                for item in inspection_result.get("inputs", [])
+            ]
+            if detected_rows:
+                st.dataframe(pd.DataFrame(detected_rows), use_container_width=True, hide_index=True)
+            google_buttons = inspection_result.get("google_buttons", [])
+            if google_buttons:
+                st.success("Google sign-in control detected:")
+                st.dataframe(pd.DataFrame(google_buttons), use_container_width=True, hide_index=True)
+            else:
+                st.info("No obvious Google sign-in button was detected on this page.")
+
         with st.form("website_profile_visual_form"):
             st.markdown("**Website details**")
             p1, p2 = st.columns(2)
@@ -403,17 +459,14 @@ with website_tab:
                     index=auth_index,
                 )
             st.markdown("**Form selectors (CSS)**")
-            selectors = selected_profile.get("selectors", {})
-            if not isinstance(selectors, dict):
-                selectors = {}
             s1, s2 = st.columns(2)
             with s1:
-                selector_name = st.text_input("Name field selector", value=str(selectors.get("name", "")), placeholder="input[name='name']")
-                selector_email = st.text_input("Email field selector", value=str(selectors.get("email", "")), placeholder="input[name='email']")
-                selector_password = st.text_input("Password field selector", value=str(selectors.get("password", "")), placeholder="input[name='password']")
+                selector_name = st.text_input("Name field selector", key="website_selector_name", placeholder="Auto-detected")
+                selector_email = st.text_input("Email field selector", key="website_selector_email", placeholder="Auto-detected")
+                selector_password = st.text_input("Password field selector", key="website_selector_password", placeholder="Auto-detected")
             with s2:
-                selector_confirm = st.text_input("Confirm password selector", value=str(selectors.get("confirm_password", "")), placeholder="input[name='password_confirmation']")
-                selector_submit = st.text_input("Submit button selector", value=str(selectors.get("submit", "")), placeholder="button[type='submit']")
+                selector_confirm = st.text_input("Confirm password selector", key="website_selector_confirm_password", placeholder="Auto-detected")
+                selector_submit = st.text_input("Submit button selector", key="website_selector_submit", placeholder="Auto-detected")
                 google_oauth_enabled = st.checkbox(
                     "Enable Google OAuth flow testing",
                     value=bool(selected_profile.get("google_oauth_enabled", False)),
