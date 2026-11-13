@@ -180,26 +180,39 @@ class CpanelBrowserMailboxManager:
                   return result;
                 }
 
-                const apiStatus = payload?.result?.status;
+                // Accept both the documented {result:{status,data,...}} envelope and
+                // direct {status,data,...} responses returned by some cPanel integrations.
+                const apiResult = payload?.result && typeof payload.result === 'object'
+                  ? payload.result : payload;
+                const legacy = payload?.cpanelresult && typeof payload.cpanelresult === 'object'
+                  ? payload.cpanelresult : null;
+                const apiStatus = apiResult?.status
+                  ?? legacy?.event?.result
+                  ?? legacy?.result
+                  ?? null;
                 const safe = (value) => value == null ? null
                   : JSON.stringify(value).replace(/cpsess[^/\\s"'<>]+/gi, 'cpsess[redacted]');
-                result.apiStatus = apiStatus ?? null;
                 const useful = (value) => value != null
                   && !(Array.isArray(value) && value.length === 0)
                   && !(typeof value === 'string' && value.trim() === '');
-                result.apiErrors = useful(payload?.result?.errors) ? safe(payload.result.errors) : null;
-                result.apiMessages = useful(payload?.result?.messages) ? safe(payload.result.messages) : null;
-                result.apiWarnings = useful(payload?.result?.warnings) ? safe(payload.result.warnings) : null;
-                result.resultKeys = payload?.result && typeof payload.result === 'object'
-                  ? Object.keys(payload.result) : [];
-                result.dataType = Array.isArray(payload?.result?.data)
-                  ? 'array' : typeof payload?.result?.data;
+                const errors = apiResult?.errors ?? legacy?.reason ?? null;
+                const messages = apiResult?.messages ?? null;
+                const warnings = apiResult?.warnings ?? null;
+                result.apiStatus = apiStatus;
+                result.apiErrors = useful(errors) ? safe(errors) : null;
+                result.apiMessages = useful(messages) ? safe(messages) : null;
+                result.apiWarnings = useful(warnings) ? safe(warnings) : null;
+                result.topLevelKeys = Object.keys(payload || {});
+                result.resultKeys = apiResult && typeof apiResult === 'object'
+                  ? Object.keys(apiResult) : [];
+                const data = apiResult?.data ?? legacy?.data;
+                result.dataType = Array.isArray(data) ? 'array' : typeof data;
                 result.ok = response.ok && String(apiStatus) === '1' && !response.redirected;
                 if (!result.ok) {
                   result.reason = response.redirected
                     ? 'UAPI dialihkan ke halaman lain; sesi mungkin kedaluwarsa.'
                     : (result.apiErrors || result.apiMessages || result.apiWarnings
-                      || 'UAPI mengembalikan status selain 1. Periksa HTTP status, API status, dan result keys di diagnostik.');
+                      || 'HTTP berhasil, tetapi envelope JSON tidak berisi status sukses UAPI. Lihat topLevelKeys dan resultKeys.');
                 }
                 return result;
               } catch (error) {
@@ -261,8 +274,30 @@ class CpanelBrowserMailboxManager:
             return {"connected": False, "message": str(exc), "diagnostics": []}
 
     @staticmethod
-    def _uapi_succeeded(payload: dict[str, Any]) -> bool:
-        return str(payload.get("result", {}).get("status", "")) == "1"
+    def _uapi_result(payload: dict[str, Any]) -> dict[str, Any]:
+        """Normalize standard UAPI, direct-result and legacy cPanel API 2 envelopes."""
+        nested = payload.get("result")
+        if isinstance(nested, dict):
+            return nested
+        direct_keys = {"status", "data", "errors", "messages", "warnings"}
+        if direct_keys.intersection(payload):
+            return payload
+        legacy = payload.get("cpanelresult")
+        if isinstance(legacy, dict):
+            event = legacy.get("event")
+            status = event.get("result") if isinstance(event, dict) else legacy.get("result")
+            return {
+                "status": status,
+                "data": legacy.get("data", []),
+                "errors": legacy.get("reason"),
+                "messages": None,
+                "warnings": None,
+            }
+        return {}
+
+    @classmethod
+    def _uapi_succeeded(cls, payload: dict[str, Any]) -> bool:
+        return str(cls._uapi_result(payload).get("status", "")) == "1"
 
     def _list_mailboxes(self, page: Page) -> list[dict[str, Any]]:
         payload = page.evaluate(
@@ -280,11 +315,11 @@ class CpanelBrowserMailboxManager:
               return await response.json();
             }"""
         )
+        normalized = self._uapi_result(payload)
         if not self._uapi_succeeded(payload):
-            result = payload.get("result", {})
-            details = result.get("errors") or result.get("messages") or "Tidak ada detail UAPI."
+            details = normalized.get("errors") or normalized.get("messages") or "Tidak ada detail UAPI."
             raise MailboxError(f"Email::list_pops gagal: {details}")
-        data = payload.get("result", {}).get("data") or []
+        data = normalized.get("data") or []
         if not isinstance(data, list):
             raise MailboxError("Format data Email::list_pops tidak dikenali.")
         return data
