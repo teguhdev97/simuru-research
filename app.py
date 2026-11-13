@@ -527,34 +527,34 @@ with mailbox_tab:
             else:
                 st.info("Password acak unik sedang digunakan. Isi field Shared QA mailbox password untuk menyamakan password kelima mailbox.")
 
-        if mailbox_rows:
-            with st.expander("Import existing mailbox password from CSV", expanded=False):
-                st.caption(
-                    "Gunakan ini untuk mailbox yang dibuat sebelum credential vault tersedia. "
-                    "Password hanya disimpan di Windows Credential Manager."
-                )
-                old_email = st.selectbox(
-                    "Existing mailbox",
-                    [str(row["email"]) for row in mailbox_rows],
-                    key="vault_import_email",
-                )
-                old_password = st.text_input(
-                    "Mailbox password from CSV",
-                    type="password",
-                    key="vault_import_password",
-                )
-                if st.button("Save password to local credential vault", key="vault_import_save"):
-                    try:
-                        cpanel_manager.import_mailbox_credential(old_email, old_password)
-                        st.session_state["mailbox_workflow_alert"] = {
-                            "kind": "success",
-                            "message": "Mailbox password tersimpan di Windows Credential Manager.",
-                        }
-                    except (MailboxError, RuntimeError) as exc:
-                        st.session_state["mailbox_workflow_alert"] = {
-                            "kind": "error",
-                            "message": str(exc),
-                        }
+        with st.expander("Import existing mailbox password from CSV", expanded=False):
+            st.caption(
+                "Gunakan untuk mailbox yang telah dibuat sebelumnya. Password hanya disimpan "
+                "di Windows Credential Manager lokal, bukan SQLite atau Git."
+            )
+            old_email = st.text_input(
+                "Existing QA mailbox email",
+                placeholder=f"{cpanel_manager.prefix}-xxxx-01@{cpanel_manager.domain}",
+                key="vault_import_email",
+            ).strip().lower()
+            old_password = st.text_input(
+                "Mailbox password from CSV",
+                type="password",
+                key="vault_import_password",
+            )
+            if st.button("Save password to local credential vault", key="vault_import_save"):
+                try:
+                    cpanel_manager.import_mailbox_credential(old_email, old_password)
+                    st.session_state["mailbox_workflow_alert"] = {
+                        "kind": "success",
+                        "message": "Mailbox password tersimpan di Windows Credential Manager.",
+                    }
+                except (MailboxError, RuntimeError) as exc:
+                    st.session_state["mailbox_workflow_alert"] = {
+                        "kind": "error",
+                        "message": str(exc),
+                    }
+
 
         if batch_complete:
             st.divider()
