@@ -195,3 +195,21 @@ The cPanel session probe accepts:
 - legacy API 2 envelope: `{ "cpanelresult": { "event": { "result": 1 }, "data": ... } }`.
 
 Diagnostics expose only response shape metadata (`topLevelKeys`, `resultKeys`, `dataType`), HTTP status, and redacted error details. They must not reveal mailbox addresses or session IDs. The Python provider normalizes these envelopes before listing or creating mailboxes.
+
+
+## Unified mailbox and Google OAuth QA workflow
+
+The Mailbox Manager is the single entry point:
+1. Create exactly five owned-domain mailboxes.
+2. Verify all five through cPanel UAPI.
+3. Optionally reset those five mailboxes to the local shared QA password from
+   `QA_MAILBOX_MASTER_PASSWORD` (never commit this value).
+4. Only after five-of-five success, reveal a registration URL field and Google test
+   account selector.
+5. Inspect the authorized staging/local page and detect Google sign-in controls.
+6. Open the page in the local Chromium profile for a human-supervised OAuth test.
+
+The mailboxes are not Google Accounts by default. The owner must register each
+address as a Google Account and add it to the Google OAuth consent-screen Test Users
+list first. The browser flow does not automate Google account creation, credentials,
+CAPTCHA, MFA, or consent.
