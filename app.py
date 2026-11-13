@@ -84,8 +84,10 @@ with overview_tab:
 
     st.subheader("Integration scope")
     st.markdown(
-        "- Team Accounts: metadata registry for accounts the team owns or is authorized to manage.\n"
-        "- Instagram API: available for eligible professional Creator/Business accounts after OAuth.\n"
+        "- Team Accounts: metadata registry for accounts the team owns or are "
+        "authorized to manage.\n"
+        "- Instagram API: available for eligible professional Creator/Business "
+        "accounts after OAuth.\n"
         "- Personal Instagram accounts: registry-only; no official Instagram API connection.\n"
         "- SIMURU: read-only account and catalog research endpoints.\n"
         "- Sandbox: synthetic QA only; no third-party signup, OTP, or number rental."
@@ -122,7 +124,10 @@ with team_tab:
             account_type = st.selectbox(
                 "Account type",
                 ["personal", "creator", "business"],
-                help="Personal accounts are recorded only; official API access requires Creator or Business.",
+                help=(
+                    "Personal accounts are recorded only; official API access "
+                    "requires Creator or Business."
+                ),
             )
             notes = st.text_input("Notes (optional)", placeholder="Pilot account")
         owner_approved = st.checkbox(
@@ -169,7 +174,8 @@ with team_tab:
         key="team_account_csv",
     )
     import_confirmed = st.checkbox(
-        "I confirm every imported account is owned by the team or explicitly authorized by its owner."
+        "I confirm every imported account is owned by the team or explicitly "
+        "authorized by its owner."
     )
     if st.button(
         "Import authorized accounts",
