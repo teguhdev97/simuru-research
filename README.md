@@ -141,9 +141,12 @@ The dashboard includes:
 
 ## Website Automation (visual configuration)
 
-The **Website Automation** tab provides a form-based profile manager. Add a website
-name, HTTPS base URL (or localhost), registration path, authentication method, CSS
-selectors for form fields, and whether Google OAuth flow testing is part of the QA plan.
+The **Website Automation** tab provides a form-based profile manager and a read-only
+Playwright form inspector. Enter a registration page URL and click **Inspect Website &
+Auto-detect Selectors** to discover visible inputs, labels, placeholders, submit controls,
+and obvious Google sign-in buttons. Suggested CSS selectors are copied into the profile
+form for review and can be edited before saving. The inspector never submits a form or
+performs a login.
 Save, select, preview, or delete profiles in the dashboard.
 
 Profiles are stored locally in `data/website_profiles.json`, which is covered by
