@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from simuru_research.config.settings import Settings
@@ -10,6 +11,17 @@ from simuru_research.security.auth_qa import LocalAuthQAService, QAAuthError
 
 settings = Settings.from_env()
 auth_service = LocalAuthQAService(settings.database_path)
+
+@app.middleware("http")
+async def enforce_loopback_only(request: Request, call_next):
+    client_host = request.client.host if request.client else ""
+    if client_host not in {"127.0.0.1", "::1", "localhost", "testclient"}:
+        return JSONResponse(
+            status_code=403,
+            content={"detail": "This QA API is restricted to the local machine."},
+        )
+    return await call_next(request)
+
 
 app = FastAPI(
     title="Simuru Local Registration QA API",
