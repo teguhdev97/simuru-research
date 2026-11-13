@@ -474,7 +474,7 @@ with mailbox_tab:
             len(mailbox_rows) == 5
             and all(
                 row.get("status") == "created"
-                and row.get("credential_storage") != "failed"
+                and row.get("credential_storage") == "saved"
                 for row in mailbox_rows
             )
         )
