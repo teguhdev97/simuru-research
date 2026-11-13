@@ -1,6 +1,6 @@
 [project]
 name = "simuru-research"
-version = "0.4.0"
+version = "0.5.0"
 description = "Local SIMURU API research, team account registry, and synthetic QA dashboard"
 readme = "README.md"
 authors = [
@@ -8,10 +8,12 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
+    "fastapi>=0.115,<1",
     "httpx>=0.28,<1",
     "pandas>=2.2,<4",
     "python-dotenv>=1.1,<2",
     "streamlit>=1.40,<2",
+    "uvicorn>=0.34,<1",
 ]
 
 [project.optional-dependencies]
