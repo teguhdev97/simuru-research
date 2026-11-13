@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import pandas as pd
 import streamlit as st
 
@@ -306,6 +307,7 @@ with mailbox_tab:
         domain="teguhharits.com",
         prefix="qa",
         quota_mb=50,
+        mailbox_password=os.getenv("QA_MAILBOX_MASTER_PASSWORD", ""),
     )
 
     c1, c2 = st.columns(2)
@@ -372,113 +374,74 @@ with mailbox_tab:
         )
         if mailbox_rows:
             mailbox_frame = pd.DataFrame(mailbox_rows)
-            st.dataframe(
-                mailbox_frame[["email", "status", "error"]],
-                use_container_width=True,
-                hide_index=True,
-            )
+            st.dataframe(mailbox_frame[["email", "status", "error"]], use_container_width=True, hide_index=True)
             st.download_button(
                 "Download 5 mailbox credentials (CSV)",
                 data=mailbox_frame.to_csv(index=False).encode("utf-8"),
                 file_name="simuru-five-mailboxes.csv",
                 mime="text/csv",
             )
+            if os.getenv("QA_MAILBOX_MASTER_PASSWORD", "").strip():
+                if st.button("Set same password for these 5 mailboxes", use_container_width=True):
+                    try:
+                        with st.spinner("Memperbarui password mailbox di cPanel..."):
+                            reset_rows = cpanel_manager.reset_mailbox_passwords(
+                                [str(row["email"]) for row in mailbox_rows if row.get("status") == "created"]
+                            )
+                        st.session_state["mailbox_password_reset"] = reset_rows
+                        if reset_rows and all(row["status"] == "updated" for row in reset_rows):
+                            st.success("Password mailbox berhasil diseragamkan.")
+                        else:
+                            st.warning("Sebagian password belum berhasil diperbarui.")
+                            st.dataframe(pd.DataFrame(reset_rows), hide_index=True)
+                    except MailboxError as exc:
+                        st.error(str(exc))
+            else:
+                st.warning("Atur QA_MAILBOX_MASTER_PASSWORD di .env lokal untuk memakai password seragam.")
 
         if batch_complete:
             st.divider()
-            st.subheader("Google OAuth · Prepare Test Users")
-            st.success(
-                "Kelima mailbox berhasil dibuat dan ditemukan kembali melalui cPanel. "
-                "Tahap konfigurasi Google OAuth sekarang tersedia."
-            )
-            st.write(
-                "Gunakan alamat di bawah untuk akun Google yang akan menguji OAuth aplikasi milikmu. "
-                "Mailbox bukan otomatis Google Account; setiap alamat harus didaftarkan/ditautkan "
-                "secara manual sebagai Google Account dan diverifikasi oleh Google."
-            )
-            oauth_store = GoogleOAuthQAConfigStore()
-            try:
-                saved_oauth = oauth_store.load() or {}
-            except GoogleOAuthQAConfigError as exc:
-                saved_oauth = {}
-                st.error(str(exc))
-
+            st.subheader("Google OAuth Registration QA")
+            st.success("Lima mailbox berhasil dibuat dan diverifikasi.")
             test_emails = [str(row["email"]) for row in mailbox_rows]
+            st.caption("Setiap alamat harus sudah menjadi Google Account dan ditambahkan ke Google Auth Platform → Audience → Test users.")
             st.code("\\n".join(test_emails), language="text")
-            st.download_button(
-                "Download Google OAuth test-user list",
-                data=("\\n".join(test_emails) + "\\n").encode("utf-8"),
-                file_name="google-oauth-test-users.txt",
-                mime="text/plain",
-            )
-            with st.expander("Google Account preparation steps", expanded=True):
-                st.markdown(
-                    "1. Pastikan kelima mailbox bisa menerima email.\n"
-                    "2. Untuk setiap alamat yang belum menjadi Google Account, buka "
-                    "[Google Account sign-up](https://accounts.google.com/signup).\n"
-                    "3. Pilih **Use your existing email**, masukkan alamat mailbox, lalu "
-                    "selesaikan verifikasi email dan langkah keamanan Google secara manual.\n"
-                    "4. Buka [Google Auth Platform → Audience](https://console.cloud.google.com/auth/audience).\n"
-                    "5. Pada **Test users**, pilih **Add users**, tempel lima alamat di atas, lalu Save."
-                )
-                st.caption(
-                    "SIMURU tidak membuat Google Accounts, tidak mengisi CAPTCHA/2FA, dan tidak "
-                    "menyimpan password Google. Google mewajibkan akun Google yang valid untuk daftar test users."
-                )
-
-            with st.form("google_oauth_qa_config_form"):
-                st.markdown("**OAuth client milik aplikasi yang kamu kembangkan**")
-                g1, g2 = st.columns(2)
-                with g1:
-                    oauth_project = st.text_input(
-                        "Google Cloud project name",
-                        value=str(saved_oauth.get("project_name", "")),
-                        placeholder="SIMURU OAuth QA",
-                    )
-                    oauth_client_id = st.text_input(
-                        "OAuth Client ID",
-                        value=str(saved_oauth.get("client_id", "")),
-                        placeholder="...apps.googleusercontent.com",
-                    )
-                with g2:
-                    oauth_redirect_uri = st.text_input(
-                        "Authorized redirect URI",
-                        value=str(saved_oauth.get("redirect_uri", "")),
-                        placeholder="http://localhost:8000/auth/google/callback",
-                    )
-                    st.text_input(
-                        "OAuth scopes",
-                        value="openid email profile",
-                        disabled=True,
-                    )
-                confirm_test_users = st.checkbox(
-                    "Saya sudah memastikan alamat ini adalah Google Accounts yang sah "
-                    "dan menambahkannya secara manual ke Audience → Test users."
-                )
-                st.warning(
-                    "Jangan masukkan Client Secret di sini. Secret yang terlihat pada screenshot "
-                    "sebelumnya harus dirotasi dari Google Cloud Console."
-                )
-                save_oauth_config = st.form_submit_button(
-                    "Save Google OAuth QA configuration",
-                    type="primary",
-                    use_container_width=True,
-                )
-            if save_oauth_config:
-                try:
-                    oauth_store.save({
-                        "project_name": oauth_project,
-                        "client_id": oauth_client_id,
-                        "redirect_uri": oauth_redirect_uri,
-                        "emails": test_emails,
-                        "test_users_confirmed": confirm_test_users,
-                    })
-                    st.success(
-                        "Metadata OAuth tersimpan lokal. Client Secret tidak disimpan."
-                    )
-                except GoogleOAuthQAConfigError as exc:
-                    st.error(str(exc))
-
+            with st.form("integrated_google_oauth_qa_form"):
+                target_url = st.text_input("Website registration URL", placeholder="https://your-staging-site.example/register")
+                selected_test_email = st.selectbox("Google test account", test_emails)
+                owns_target = st.checkbox("Saya memiliki website ini atau memiliki izin eksplisit untuk menjalankan QA.")
+                accounts_ready = st.checkbox("Kelima alamat sudah menjadi Google Account dan ditambahkan ke OAuth Test Users.")
+                inspect_and_save = st.form_submit_button("Inspect website & prepare Google OAuth test", type="primary", use_container_width=True)
+            if inspect_and_save:
+                if not owns_target:
+                    st.error("Konfirmasi kepemilikan/izin website sebelum menjalankan QA.")
+                elif not accounts_ready:
+                    st.error("Selesaikan pembuatan Google Account dan penambahan Test Users terlebih dahulu.")
+                else:
+                    try:
+                        with st.spinner("Memeriksa halaman registrasi dan tombol Google OAuth..."):
+                            inspection = inspect_form(target_url)
+                        st.session_state["integrated_oauth_target"] = target_url
+                        st.session_state["integrated_oauth_inspection"] = inspection
+                        st.session_state["integrated_oauth_email"] = selected_test_email
+                        st.success(f"Halaman diperiksa: {inspection.get('title') or inspection.get('url')}. {len(inspection.get('google_buttons', []))} kontrol Google terdeteksi.")
+                    except FormInspectionError as exc:
+                        st.error(str(exc))
+            oauth_inspection = st.session_state.get("integrated_oauth_inspection")
+            if oauth_inspection:
+                google_controls = oauth_inspection.get("google_buttons", [])
+                if google_controls:
+                    st.dataframe(pd.DataFrame(google_controls), use_container_width=True, hide_index=True)
+                else:
+                    st.warning("Tombol Google OAuth belum terdeteksi pada halaman tersebut.")
+                st.caption("Penyelesaian login Google, consent, CAPTCHA, dan MFA tetap dilakukan manual oleh pemilik akun.")
+                if st.button("Open website for Google OAuth QA", type="primary", use_container_width=True):
+                    try:
+                        message = cpanel_manager.open_website_for_oauth_qa(str(st.session_state['integrated_oauth_target']))
+                        st.success(message)
+                        st.info("Akun test yang dipilih: " + str(st.session_state.get("integrated_oauth_email", "")) + ". Pilih akun tersebut pada Google secara manual.")
+                    except MailboxError as exc:
+                        st.error(str(exc))
     render_mailbox_workflow()
 
 with website_tab:
