@@ -12,6 +12,16 @@ from simuru_research.security.auth_qa import LocalAuthQAService, QAAuthError
 settings = Settings.from_env()
 auth_service = LocalAuthQAService(settings.database_path)
 
+app = FastAPI(
+    title="Simuru Local Registration QA API",
+    version="0.5.0",
+    description=(
+        "Loopback-only QA API for testing registration, email/SMS verification, "
+        "and login in the team's own local application. It does not connect to Instagram."
+    ),
+)
+
+
 @app.middleware("http")
 async def enforce_loopback_only(request: Request, call_next):
     client_host = request.client.host if request.client else ""
@@ -22,15 +32,6 @@ async def enforce_loopback_only(request: Request, call_next):
         )
     return await call_next(request)
 
-
-app = FastAPI(
-    title="Simuru Local Registration QA API",
-    version="0.5.0",
-    description=(
-        "Loopback-only QA API for testing registration, email/SMS verification, "
-        "and login in the team's own local application. It does not connect to Instagram."
-    ),
-)
 
 
 class RegisterRequest(BaseModel):
