@@ -440,3 +440,16 @@ of the five test identities, confirm the Google Accounts are already set up and 
 as OAuth Test Users, then inspect the page and open it in Chromium. Google account
 selection, consent, CAPTCHA and MFA remain manual; this flow does not create Google
 Accounts from mailboxes.
+
+
+### Google OAuth registration launcher
+
+After the five mailbox batch is verified and the five addresses have been created as
+Google Accounts and added to OAuth Test Users, enter the authorized registration URL.
+SIMURU will inspect the page, let you choose a detected Google sign-in control, then
+open the page and click that control in local Chromium. Complete Google sign-in,
+account selection, consent, CAPTCHA, and MFA manually. The target app must implement
+the OAuth callback that validates Google's ID token and creates or links its local user.
+
+This launcher does not create Google Accounts. A mailbox address alone is not a
+Google Account.
