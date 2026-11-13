@@ -280,16 +280,6 @@ with sandbox_tab:
                 hide_index=True,
             )
 
-@st.cache_resource
-def get_cpanel_mailbox_manager() -> CpanelBrowserMailboxManager:
-    return CpanelBrowserMailboxManager(
-        cpanel_url="https://juwana.iixcp.rumahweb.net:2083",
-        domain="teguhharits.com",
-        prefix="qa",
-        quota_mb=50,
-    )
-
-
 with mailbox_tab:
     st.subheader("Mailbox Manager · Rumahweb cPanel")
     st.write(
@@ -301,7 +291,12 @@ with mailbox_tab:
         "Sesi login hanya berada di profil Chromium lokal pada laptop ini."
     )
     try:
-        cpanel_manager = get_cpanel_mailbox_manager()
+        cpanel_manager = CpanelBrowserMailboxManager(
+            cpanel_url="https://juwana.iixcp.rumahweb.net:2083",
+            domain="teguhharits.com",
+            prefix="qa",
+            quota_mb=50,
+        )
         c1, c2 = st.columns(2)
         with c1:
             if st.button("Connect cPanel", type="primary", use_container_width=True):
