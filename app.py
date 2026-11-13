@@ -59,7 +59,16 @@ with st.sidebar:
     st.caption("Registration QA uses local-only test identities and a local OTP outbox.")
     st.caption("No Instagram signup, external OTP retrieval, or provider rental is performed.")
 
-overview_tab, team_tab, sandbox_tab, mailbox_tab, website_tab, registration_qa_tab, history_tab, api_tab = (
+(
+    overview_tab,
+    team_tab,
+    sandbox_tab,
+    mailbox_tab,
+    website_tab,
+    registration_qa_tab,
+    history_tab,
+    api_tab,
+) = st.tabs(
     st.tabs(
     [
         "Overview",
@@ -416,7 +425,8 @@ with mailbox_tab:
                             st.session_state["mailbox_workflow_alert"] = {
                                 "kind": "success",
                                 "message": (
-                                    f"Password berhasil diperbarui untuk {len(reset_rows)} mailbox. "
+                                    f"Password berhasil diperbarui untuk "
+                                    f"{len(reset_rows)} mailbox. "
                                     "Simpan password ini dengan aman."
                                 ),
                             }
