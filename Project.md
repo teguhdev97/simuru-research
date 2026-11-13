@@ -44,7 +44,16 @@
 - src/simuru_research/config/website_profiles.py: validation and local persistence for website profiles.
 - src/simuru_research/engine/form_inspector.py: read-only Playwright inspection of visible form controls and suggested CSS selectors.
 - src/simuru_research/engine/registration_qa.py: local registration QA runner.
-- src/simuru_research/providers/cpanel_browser.py: persistent Chromium lifecycle, CDP attach, cPanel UAPI session checks, five-mailbox creation, authorized website email-form submission, and close/logout behavior.
+- src/simuru_research/providers/cpanel_browser.py: public facade preserving the existing cPanel manager API.
+- src/simuru_research/providers/cpanel_browser_session.py: persistent Chromium lifecycle, CDP attach, cPanel session checks, URL validation, and close/logout behavior.
+- src/simuru_research/providers/cpanel_mailboxes.py: cPanel UAPI normalization, listing, creation, credential import, and password reset.
+- src/simuru_research/providers/cpanel_website_qa.py: authorized website navigation, Google OAuth handoff, and email registration QA.
+- src/simuru_research/ui/mailbox_tab.py: mailbox settings and cPanel connection controls.
+- src/simuru_research/ui/mailbox_workflow.py: mailbox workflow composition.
+- src/simuru_research/ui/mailbox_session.py: cPanel status and existing-mailbox actions.
+- src/simuru_research/ui/mailbox_batch.py: mailbox batch results, password updates, and credential import.
+- src/simuru_research/ui/mailbox_otp.py: mailbox connectivity and OTP controls.
+- src/simuru_research/ui/mailbox_registration_qa.py: owned-website registration QA controls.
 - src/simuru_research/providers/mailbox.py: mailbox provider abstractions/errors.
 - src/simuru_research/security/auth_qa.py: local auth/OTP test service.
 - src/simuru_research/storage/database.py: SQLite repository.

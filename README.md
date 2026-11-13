@@ -295,14 +295,33 @@ simuru-research/
 │       │   └── runner.py
 │       ├── models.py
 │       ├── providers/
+│       │   ├── cpanel_browser.py
+│       │   ├── cpanel_browser_session.py
+│       │   ├── cpanel_mailboxes.py
+│       │   ├── cpanel_website_qa.py
 │       │   ├── sandbox.py
 │       │   └── simuru_client.py
 │       ├── security/
 │       │   └── auth_qa.py
-│       └── storage/
-│           ├── database.py
-│           ├── exporter.py
-│           └── team_accounts.py
+│       ├── storage/
+│       │   ├── database.py
+│       │   ├── exporter.py
+│       │   └── team_accounts.py
+│       └── ui/
+│           ├── api_tab.py
+│           ├── history_tab.py
+│           ├── mailbox_tab.py
+│           ├── mailbox_workflow.py
+│           ├── mailbox_session.py
+│           ├── mailbox_batch.py
+│           ├── mailbox_otp.py
+│           ├── mailbox_registration_qa.py
+│           ├── overview_tab.py
+│           ├── registration_qa_tab.py
+│           ├── sandbox_tab.py
+│           ├── tabs.py
+│           ├── team_tab.py
+│           └── website_tab.py
 └── tests/
     ├── test_registration_qa.py
     ├── test_runner.py
