@@ -29,7 +29,7 @@ class Settings:
             simuru_base_url=base_url,
             simuru_api_key=os.getenv("SIMURU_API_KEY", "").strip() or None,
             database_path=Path(os.getenv("DATABASE_PATH", "data/simuru_research.sqlite3")),
-            default_total_jobs=_read_int("DEFAULT_TOTAL_JOBS", 40, minimum=1, maximum=200),
+            default_total_jobs=_read_int("DEFAULT_TOTAL_JOBS", 40, minimum=1, maximum=100),
             default_max_workers=_read_int("DEFAULT_MAX_WORKERS", 3, minimum=1, maximum=10),
         )
 
