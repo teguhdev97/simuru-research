@@ -288,12 +288,14 @@ class CpanelBrowserMailboxManager:
 
     def create_eight(self) -> list[dict[str, str]]:
         """Create exactly eight unique mailboxes using the authenticated cPanel session."""
-        page = self._ensure_attached()
         status = self.session_status()
         if not status.get("connected"):
             raise MailboxError(
-                "Sesi cPanel belum login. Klik Connect cPanel dan selesaikan login manual."
+                f"{status.get('message', 'Sesi cPanel belum terverifikasi.')}"
             )
+        page = self._page
+        if page is None:
+            raise MailboxError("Tab cPanel terautentikasi tidak ditemukan.")
 
         existing = page.evaluate(
             """async (domain) => {
