@@ -16,7 +16,7 @@ def main() -> None:
         "--jobs",
         type=int,
         default=None,
-        help="Number of synthetic jobs (1-200).",
+        help="Number of synthetic jobs (1-100).",
     )
     parser.add_argument(
         "--workers",
