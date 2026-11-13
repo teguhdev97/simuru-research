@@ -7,9 +7,9 @@ from simuru_research.config.settings import Settings
 from simuru_research.engine.registration_qa import LocalRegistrationQARunner
 from simuru_research.engine.runner import BatchRunner
 from simuru_research.providers.simuru_client import SimuruAPIError, SimuruClient
+from simuru_research.security.auth_qa import LocalAuthQAService
 from simuru_research.storage.database import SQLiteRepository
 from simuru_research.storage.exporter import results_to_csv
-from simuru_research.security.auth_qa import LocalAuthQAService
 from simuru_research.storage.team_accounts import TeamAccountRegistry
 
 settings = Settings.from_env()
@@ -20,8 +20,7 @@ auth_qa_service = LocalAuthQAService(settings.database_path)
 st.set_page_config(page_title="Simuru Research", page_icon="🧪", layout="wide")
 st.title("Simuru Research Lab")
 st.caption(
-    "Local team account registry · SIMURU read-only API explorer · "
-    "Synthetic QA · SQLite history"
+    "Local team registry · SIMURU API research · Registration QA · SQLite history"
 )
 
 with st.sidebar:
@@ -42,8 +41,8 @@ with st.sidebar:
         help="Bounded local workers. No browser sessions or external signups.",
     )
     st.divider()
-    st.caption("Sandbox identities are fictional and never sent to SIMURU.")
-    st.caption("Team account registry stores metadata only, never passwords or OTPs.")
+    st.caption("Registration QA uses local-only test identities and a local OTP outbox.")
+    st.caption("No Instagram signup, external OTP retrieval, or provider rental is performed.")
 
 overview_tab, team_tab, sandbox_tab, registration_qa_tab, history_tab, api_tab = st.tabs(
     [
@@ -72,7 +71,7 @@ with overview_tab:
         st.subheader("Latest QA run")
         r1, r2, r3, r4 = st.columns(4)
         r1.metric("Run ID", latest["run_id"][:8])
-        r2.metric("Synthetic jobs", latest["total_jobs"])
+        r2.metric("QA jobs", latest["total_jobs"])
         r3.metric("Passed", latest["passed"])
         r4.metric("Failed", latest["failed"])
         st.caption(f"Latest run started: {latest['started_at']}")
@@ -94,7 +93,8 @@ with overview_tab:
         "accounts after OAuth.\n"
         "- Personal Instagram accounts: registry-only; no official Instagram API connection.\n"
         "- SIMURU: read-only account and catalog research endpoints.\n"
-        "- Sandbox: synthetic QA only; no third-party signup, OTP, or number rental."
+        "- Registration QA: local signup, email/SMS verification, and login tests only.\n"
+        "- No third-party signup, OTP retrieval, or number rental is performed."
     )
 
 with team_tab:
