@@ -156,7 +156,8 @@ SIMURU Research is a local-first, configurable QA workbench. Users configure tar
 | FR-012 | QA run history and CSV export | P1 |
 | FR-013 | Project and PRD documents stay current | P0 |
 | FR-014 | Session status automatically refreshes while the Mailbox Manager is open | P0 |
-| FR-015 | Create exactly five mailboxes and verify all five before revealing registration QA | P0 |\n| FR-016 | Fall back to exactly five sequential email/password registrations when Google OAuth is unavailable or cannot be clicked on an authorized website | P0 |
+| FR-015 | Create exactly five mailboxes and verify all five before revealing registration QA | P0 |
+| FR-016 | Fall back to exactly five sequential email/password registrations when Google OAuth is unavailable or cannot be clicked on an authorized website | P0 |
 
 ## 7. Non-functional requirements
 
