@@ -133,7 +133,7 @@ The dashboard includes:
 1. **Overview** — team account counts and latest QA run.
 2. **Team Accounts** — add, import, inspect, and export metadata for existing team-owned accounts.
 3. **Sandbox Batch** — synthetic identity/concurrency checks.
-4. **Mailbox Manager** — opens a local persistent cPanel browser session and creates exactly five new mailboxes on the configured owned domain, then exposes Google OAuth test-user preparation only after all five are verified.
+4. **Mailbox Manager** — opens a local persistent cPanel browser session, creates exactly five mailboxes on the configured owned domain, and then exposes Google OAuth or authorized email-registration QA.
 5. **Website Automation** — visually configure and save website QA profiles locally; no JSON editing required.
 6. **Registration QA** — run 40 local registration, email verification, SMS verification, and login workflows.
 7. **Run History & Export** — inspect previous runs and download CSV.
