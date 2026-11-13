@@ -8,13 +8,18 @@ from simuru_research.engine.runner import BatchRunner
 from simuru_research.providers.simuru_client import SimuruAPIError, SimuruClient
 from simuru_research.storage.database import SQLiteRepository
 from simuru_research.storage.exporter import results_to_csv
+from simuru_research.storage.team_accounts import TeamAccountRegistry
 
 settings = Settings.from_env()
 repository = SQLiteRepository(settings.database_path)
+team_accounts = TeamAccountRegistry(settings.database_path)
 
 st.set_page_config(page_title="Simuru Research", page_icon="🧪", layout="wide")
 st.title("Simuru Research Lab")
-st.caption("SIMURU read-only API explorer · Local sandbox QA · SQLite history")
+st.caption(
+    "Local team account registry · SIMURU read-only API explorer · "
+    "Synthetic QA · SQLite history"
+)
 
 with st.sidebar:
     st.subheader("Sandbox configuration")
@@ -35,21 +40,37 @@ with st.sidebar:
     )
     st.divider()
     st.caption("Sandbox identities are fictional and never sent to SIMURU.")
-    st.caption("SIMURU integration below is restricted to read-only account/catalog endpoints.")
+    st.caption("Team account registry stores metadata only, never passwords or OTPs.")
 
-overview_tab, sandbox_tab, history_tab, api_tab = st.tabs(
-    ["Overview", "Sandbox Batch", "Run History & Export", "SIMURU API"]
+overview_tab, team_tab, sandbox_tab, history_tab, api_tab = st.tabs(
+    [
+        "Overview",
+        "Team Accounts",
+        "Sandbox Batch",
+        "Run History & Export",
+        "SIMURU API",
+    ]
 )
 
 with overview_tab:
     runs = repository.list_runs(limit=1)
+    counts = team_accounts.count_by_type()
+    account_total = sum(counts.values())
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Team accounts", account_total)
+    c2.metric("Personal", counts["personal"])
+    c3.metric("Creator", counts["creator"])
+    c4.metric("Business", counts["business"])
+
     if runs:
         latest = runs[0]
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Latest run", latest["run_id"][:8])
-        c2.metric("Synthetic jobs", latest["total_jobs"])
-        c3.metric("Passed", latest["passed"])
-        c4.metric("Failed", latest["failed"])
+        st.subheader("Latest synthetic QA run")
+        r1, r2, r3, r4 = st.columns(4)
+        r1.metric("Run ID", latest["run_id"][:8])
+        r2.metric("Synthetic jobs", latest["total_jobs"])
+        r3.metric("Passed", latest["passed"])
+        r4.metric("Failed", latest["failed"])
         st.caption(f"Latest run started: {latest['started_at']}")
         latest_results = repository.list_results(latest["run_id"])
         if latest_results:
@@ -63,17 +84,157 @@ with overview_tab:
 
     st.subheader("Integration scope")
     st.markdown(
-        "- Account: profile and balance.\n"
-        "- Catalog: services, countries, price list, operators, and offers.\n"
-        "- Insights: country-level success-rate summary.\n"
-        "- No order creation/cancellation, number rental, email rental, or OTP retrieval."
+        "- Team Accounts: metadata registry for accounts the team owns or is authorized to manage.\n"
+        "- Instagram API: available for eligible professional Creator/Business accounts after OAuth.\n"
+        "- Personal Instagram accounts: registry-only; no official Instagram API connection.\n"
+        "- SIMURU: read-only account and catalog research endpoints.\n"
+        "- Sandbox: synthetic QA only; no third-party signup, OTP, or number rental."
+    )
+
+with team_tab:
+    st.subheader("Team Instagram Account Registry")
+    st.write(
+        "Catat akun Instagram yang sudah ada dan memang dimiliki atau dikelola "
+        "dengan izin oleh tim. Registry ini tidak membuat akun, login, atau "
+        "mengambil alih akun Instagram."
+    )
+    st.warning(
+        "Jangan masukkan password, kode OTP, nomor telepon, email pribadi, "
+        "session cookie, atau access token ke registry/CSV ini. "
+        "Pemilik akun harus menyetujui pencatatan username."
+    )
+
+    counts = team_accounts.count_by_type()
+    total_accounts = sum(counts.values())
+    metric_columns = st.columns(4)
+    metric_columns[0].metric("Total registered", total_accounts)
+    metric_columns[1].metric("Personal · manual only", counts["personal"])
+    metric_columns[2].metric("Creator · OAuth pending", counts["creator"])
+    metric_columns[3].metric("Business · OAuth pending", counts["business"])
+
+    with st.form("add_team_account_form", clear_on_submit=True):
+        st.markdown("**Register an existing team account**")
+        first, second = st.columns(2)
+        with first:
+            username = st.text_input("Instagram username", placeholder="team_account")
+            owner_label = st.text_input("Owner / team label", placeholder="Marketing Team")
+        with second:
+            account_type = st.selectbox(
+                "Account type",
+                ["personal", "creator", "business"],
+                help="Personal accounts are recorded only; official API access requires Creator or Business.",
+            )
+            notes = st.text_input("Notes (optional)", placeholder="Pilot account")
+        owner_approved = st.checkbox(
+            "I confirm the owner has authorized our team to record and manage this account."
+        )
+        submitted = st.form_submit_button("Add existing account", type="primary")
+
+    if submitted:
+        try:
+            inserted = team_accounts.add_account(
+                username=username,
+                owner_label=owner_label,
+                account_type=account_type,
+                owner_approved=owner_approved,
+                notes=notes,
+            )
+            if inserted:
+                st.success(f"@{username.strip().removeprefix('@')} added to the local registry.")
+            else:
+                st.info("Username already exists in the registry.")
+            st.rerun()
+        except ValueError as exc:
+            st.error(str(exc))
+
+    st.divider()
+    st.markdown("**Bulk import existing accounts from CSV**")
+    st.caption(
+        "Required columns: username, owner_label, account_type, owner_approved, notes. "
+        "Only rows with owner_approved=true are imported."
+    )
+    csv_template = (
+        "username,owner_label,account_type,owner_approved,notes\n"
+        "sample_team_account,Marketing Team,personal,true,Replace with an authorized account\n"
+    )
+    st.download_button(
+        "Download CSV template",
+        data=csv_template,
+        file_name="simuru-team-accounts-template.csv",
+        mime="text/csv",
+    )
+    uploaded_csv = st.file_uploader(
+        "Choose team account CSV",
+        type=["csv"],
+        key="team_account_csv",
+    )
+    import_confirmed = st.checkbox(
+        "I confirm every imported account is owned by the team or explicitly authorized by its owner."
+    )
+    if st.button(
+        "Import authorized accounts",
+        type="primary",
+        disabled=uploaded_csv is None,
+    ):
+        if not import_confirmed:
+            st.error("Confirm account ownership/authorization before importing.")
+        else:
+            try:
+                csv_content = uploaded_csv.getvalue().decode("utf-8-sig")
+                result = team_accounts.import_csv(csv_content, confirmed=True)
+                st.success(
+                    f"Imported: {result['imported']} · "
+                    f"Duplicates: {result['duplicates']} · "
+                    f"Unapproved skipped: {result['unauthorized']} · "
+                    f"Invalid skipped: {result['invalid']}"
+                )
+                st.rerun()
+            except (UnicodeDecodeError, ValueError) as exc:
+                st.error(str(exc))
+
+    st.divider()
+    st.subheader("Registered team accounts")
+    accounts = team_accounts.list_accounts()
+    if accounts:
+        st.dataframe(
+            pd.DataFrame(accounts),
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "owner_approved": st.column_config.CheckboxColumn(
+                    "Owner approved",
+                    disabled=True,
+                )
+            },
+        )
+        st.download_button(
+            "Export team account registry",
+            data=team_accounts.export_csv(),
+            file_name="simuru-team-accounts.csv",
+            mime="text/csv",
+        )
+    else:
+        st.info("Belum ada akun yang dicatat. Tambahkan satu akun pilot atau import CSV.")
+
+    st.subheader("Meta API eligibility")
+    st.markdown(
+        "- **Personal:** registry-only. Instagram's official API does not provide "
+        "access to consumer/personal accounts.\n"
+        "- **Creator / Business:** eligible to proceed to Meta OAuth after the "
+        "Instagram API product, permissions, and app roles are configured.\n"
+        "- This release does not request passwords, automate sign-up, rent numbers, "
+        "retrieve OTPs, or create Instagram accounts."
+    )
+    st.markdown(
+        "[Meta for Developers](https://developers.facebook.com/apps/) · "
+        "[Instagram API documentation](https://www.postman.com/meta/instagram/documentation/)"
     )
 
 with sandbox_tab:
     st.subheader("Run synthetic QA batch")
     st.write(
         "Batch lokal untuk menguji antrean, concurrency, penyimpanan SQLite, "
-        "dan ekspor hasil. Tidak membuat akun eksternal dan tidak menghubungi penyedia SMS."
+        "dan ekspor hasil. Data sintetis ini tidak membuat akun eksternal."
     )
     if st.button("Run sandbox batch", type="primary", use_container_width=True):
         with st.spinner(
@@ -399,7 +560,10 @@ with api_tab:
                         use_container_width=True,
                         hide_index=True,
                     )
-                    st.caption("Preview limited to the first 100 rows; CSV contains all returned rows.")
+                    st.caption(
+                        "Preview limited to the first 100 rows; "
+                        "CSV contains all returned rows."
+                    )
 
         with insights_tab:
             st.write(
