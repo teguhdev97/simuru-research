@@ -109,9 +109,11 @@ def run_sequential_browser_sessions(
         except WebDriverException as exc:
             status = f"webdriver_error:{type(exc).__name__}"
         finally:
-            if driver is not None:
-                driver.quit()
-            shutil.rmtree(profile_dir, ignore_errors=True)
+            try:
+                if driver is not None:
+                    driver.quit()
+            finally:
+                shutil.rmtree(profile_dir, ignore_errors=True)
 
         results.append(
             SessionResult(
