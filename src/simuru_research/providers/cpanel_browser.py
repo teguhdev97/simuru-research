@@ -153,7 +153,10 @@ class CpanelBrowserMailboxManager:
             """async () => {
               const result = {
                 ok: false,
-                pageUrl: location.origin + location.pathname.replace(/^\\/cpsess[^/]+/, '/cpsess[redacted]'), // noqa: E501
+                pageUrl: location.origin + location.pathname.replace(
+                  /^\\/cpsess[^/]+/,
+                  '/cpsess[redacted]'
+                ),
                 title: document.title,
                 origin: location.origin,
                 path: location.pathname.replace(/^\\/cpsess[^/]+/, '/cpsess[redacted]')
@@ -165,7 +168,10 @@ class CpanelBrowserMailboxManager:
               }
 
               const endpoint = new URL(match[0] + '/execute/Email/list_pops', location.origin);
-              result.endpointPath = endpoint.pathname.replace(/^\\/cpsess[^/]+/, '/cpsess[redacted]'); // noqa: E501
+              result.endpointPath = endpoint.pathname.replace(
+                /^\\/cpsess[^/]+/,
+                '/cpsess[redacted]'
+              );
               try {
                 const response = await fetch(endpoint.href, {
                   method: 'GET',
@@ -176,7 +182,10 @@ class CpanelBrowserMailboxManager:
                 result.httpStatus = response.status;
                 result.contentType = response.headers.get('content-type') || '';
                 const responseUrl = new URL(response.url);
-                result.responseUrl = responseUrl.origin + responseUrl.pathname.replace(/^\\/cpsess[^/]+/, '/cpsess[redacted]'); // noqa: E501
+                result.responseUrl = responseUrl.origin + responseUrl.pathname.replace(
+                  /^\\/cpsess[^/]+/,
+                  '/cpsess[redacted]'
+                );
                 result.redirected = response.redirected;
 
                 const raw = await response.text();
@@ -184,7 +193,9 @@ class CpanelBrowserMailboxManager:
                 try {
                   payload = JSON.parse(raw);
                 } catch (_) {
-                  result.reason = 'UAPI tidak mengembalikan JSON; kemungkinan dialihkan ke halaman login.'; // noqa: E501
+                  result.reason = (
+                    'UAPI tidak mengembalikan JSON; kemungkinan dialihkan ke halaman login.'
+                  );
 
                   return result;
                 }
@@ -221,7 +232,8 @@ class CpanelBrowserMailboxManager:
                   result.reason = response.redirected
                     ? 'UAPI dialihkan ke halaman lain; sesi mungkin kedaluwarsa.'
                     : (result.apiErrors || result.apiMessages || result.apiWarnings
-                      || 'HTTP berhasil, tetapi envelope JSON tidak berisi status sukses UAPI. Lihat topLevelKeys dan resultKeys.'); // noqa: E501
+                      || 'HTTP berhasil, tetapi envelope JSON tidak berisi status sukses UAPI. '
+                      + 'Lihat topLevelKeys dan resultKeys.');
                 }
                 return result;
               } catch (error) {
