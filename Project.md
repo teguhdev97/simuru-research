@@ -57,7 +57,7 @@ The current browser-session integration does **not** require a cPanel API token.
 
 1. Streamlit asks the local manager to start Chromium with a persistent local profile and remote debugging endpoint (default port 9222).
 2. The operator logs into their own cPanel manually.
-3. A later Streamlit run attaches to Chromium through CDP.
+3. Each Streamlit interaction/fragment run attaches to Chromium through a fresh Playwright client over CDP.
 4. The manager locates open tabs for the configured cPanel host.
 5. It calls cPanel UAPI with same-origin browser credentials.
 6. Mailbox creation uses Email::add_pop; mailbox listing uses Email::list_pops.
@@ -66,7 +66,7 @@ The current browser-session integration does **not** require a cPanel API token.
 
 ### Current diagnostic change
 
-The Mailbox Manager includes a **Check cPanel Session** action. It checks all open cPanel tabs automatically every three seconds in the dashboard and reports:
+The Mailbox Manager shows a live cPanel session status panel. It checks all open cPanel tabs automatically every three seconds and reports:
 - whether a cPanel tab was found;
 - whether the URL contains a cPanel session prefix (the session ID is redacted in diagnostics);
 - HTTP status and redirect behavior of the UAPI request;
