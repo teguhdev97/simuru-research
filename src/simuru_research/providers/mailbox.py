@@ -4,6 +4,7 @@ import base64
 import hashlib
 import hmac
 import imaplib
+import os
 import re
 import smtplib
 import ssl
@@ -14,11 +15,8 @@ from email import message_from_bytes
 from email.header import decode_header
 from email.message import EmailMessage
 from email.utils import parsedate_to_datetime
-from urllib.parse import quote
-
 import httpx
 from dotenv import load_dotenv
-import os
 
 OTP_PATTERN = re.compile(r"(?<!\d)(\d{6})(?!\d)")
 LOCAL_PART_PATTERN = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$")
@@ -134,7 +132,10 @@ class MailboxProvisioner:
                     if result.get("status") != 1:
                         details = result.get("errors") or result.get("messages") or []
                         raise MailboxError(
-                            f"cPanel rejected {address}: {', '.join(map(str, details)) or 'unknown error'}"
+                            f"cPanel rejected {address} after creating "
+                            f"{len(created)} mailbox(es): "
+                            f"{', '.join(map(str, details)) or 'unknown error'}. "
+                            f"Already created: {', '.join(created) or 'none'}"
                         )
                     created.append(address)
         except httpx.HTTPError as exc:
