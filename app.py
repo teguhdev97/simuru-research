@@ -470,6 +470,12 @@ with mailbox_tab:
                 st.rerun()
 
         mailbox_rows = st.session_state.get("latest_mailbox_batch", [])
+        for mailbox_row in mailbox_rows:
+            if mailbox_row.get("status") == "created" and MailboxCredentialVault().get(
+                str(mailbox_row["email"])
+            ):
+                mailbox_row["credential_storage"] = "saved"
+        st.session_state["latest_mailbox_batch"] = mailbox_rows
         batch_complete = (
             len(mailbox_rows) == 5
             and all(
