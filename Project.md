@@ -32,7 +32,7 @@
 | Team Accounts | Metadata registry for existing team-managed accounts |
 | Sandbox Batch | Synthetic local test identities and bounded concurrency |
 | Mailbox Manager | Open local Chromium, manually authenticate to cPanel, inspect UAPI session, create exactly five mailboxes per batch |
-| Website Automation | Visual website profile editor and read-only Playwright form inspection |
+| Website Automation | Visual website profiles, read-only form inspection, and authorized five-identity email registration fallback |
 | Registration QA | End-to-end local registration/email/SMS/login tests using local fixtures |
 | Run History & Export | Review persisted QA results and export CSV |
 | SIMURU API | Read-only API research |
@@ -44,7 +44,7 @@
 - src/simuru_research/config/website_profiles.py: validation and local persistence for website profiles.
 - src/simuru_research/engine/form_inspector.py: read-only Playwright inspection of visible form controls and suggested CSS selectors.
 - src/simuru_research/engine/registration_qa.py: local registration QA runner.
-- src/simuru_research/providers/cpanel_browser.py: persistent Chromium lifecycle, CDP attach, cPanel UAPI session checks, mailbox creation, and close/logout behavior.
+- src/simuru_research/providers/cpanel_browser.py: persistent Chromium lifecycle, CDP attach, cPanel UAPI session checks, five-mailbox creation, authorized website email-form submission, and close/logout behavior.
 - src/simuru_research/providers/mailbox.py: mailbox provider abstractions/errors.
 - src/simuru_research/security/auth_qa.py: local auth/OTP test service.
 - src/simuru_research/storage/database.py: SQLite repository.
@@ -94,9 +94,23 @@ The visual Website Automation tab stores website profiles locally in data/websit
 - Google OAuth QA flag;
 - explicit ownership/authorization acknowledgement.
 
-The form inspector opens the supplied page in a separate headless Playwright browser and reads visible form controls. It suggests selectors and identifies obvious Google sign-in controls. It is read-only: it must not submit registration forms or perform a login.
+The form inspector opens the supplied page in a separate headless Playwright browser
+and reads visible form controls. It suggests selectors and identifies Google sign-in
+controls without submitting or logging in.
 
-Profiles are configuration only. Do not claim that a profile can register users until a separately reviewed, bounded QA execution engine exists.
+The execution path is separate and is available only after the operator confirms
+ownership or explicit authorization for the target website. If Google OAuth is not
+detected, is not configured for the five test identities, or its button cannot be
+clicked, the Mailbox Manager can fill and submit the target site's email/password
+registration form sequentially for exactly five generated QA mailboxes. It uses
+reviewed/detected CSS selectors and generates an independent temporary website
+password for each identity. The results and credentials are available as a local
+CSV download and are not saved in SQLite.
+
+A successful browser click is recorded as `submitted`, not as a confirmed account.
+Site-specific email verification, OTP, CAPTCHA, approval, or other challenges must
+still be completed and verified through the target application's supported flow.
+Never bypass those controls or use this workflow on a site without authorization.
 
 ## 7. Local development
 
