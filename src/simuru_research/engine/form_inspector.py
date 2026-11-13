@@ -120,15 +120,45 @@ def inspect_form(url: str, *, timeout_ms: int = 20000) -> dict[str, object]:
         raise FormInspectionError("Struktur halaman tidak dapat dibaca.")
     def first_match(predicate):
         return next((item for item in inputs if predicate(item)), {})
-    name = first_match(lambda x: x["type"] in {"text"} and any(k in (x["label"] + " " + x["name"] + " " + x["autocomplete"]).lower() for k in ("name", "nama", "full")))
-    email = first_match(lambda x: x["type"] == "email" or "email" in (x["label"] + " " + x["name"] + " " + x["autocomplete"]).lower())
-    password_fields = [x for x in inputs if x["type"] == "password"]
+
+    def searchable_text(item: dict[str, str], *fields: str) -> str:
+        return " ".join(item.get(field, "") for field in fields).lower()
+
+    name = first_match(
+        lambda item: item["type"] == "text"
+        and any(
+            keyword in searchable_text(item, "label", "name", "autocomplete")
+            for keyword in ("name", "nama", "full")
+        )
+    )
+    email = first_match(
+        lambda item: item["type"] == "email"
+        or "email" in searchable_text(item, "label", "name", "autocomplete")
+    )
+    password_fields = [item for item in inputs if item["type"] == "password"]
     password = password_fields[0] if password_fields else {}
-    confirm = next((x for x in password_fields[1:] if any(k in (x["label"] + " " + x["name"]).lower() for k in ("confirm", "confirmation", "ulang", "konfirmasi"))), {})
+    confirm = next(
+        (
+            item
+            for item in password_fields[1:]
+            if any(
+                keyword in searchable_text(item, "label", "name")
+                for keyword in ("confirm", "confirmation", "ulang", "konfirmasi")
+            )
+        ),
+        {},
+    )
     if not confirm and len(password_fields) > 1:
         confirm = password_fields[1]
-    submit = next((x for x in buttons if x["type"] == "submit"), {})
-    google = [x for x in buttons if any(k in x["text"].lower() for k in ("google", "continue with", "sign in with"))]
+    submit = next((item for item in buttons if item["type"] == "submit"), {})
+    google = [
+        item
+        for item in buttons
+        if any(
+            keyword in item["text"].lower()
+            for keyword in ("google", "continue with", "sign in with")
+        )
+    ]
     selectors = {
         "name": name.get("selector", ""),
         "email": email.get("selector", ""),
