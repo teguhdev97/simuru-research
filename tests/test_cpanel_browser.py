@@ -34,3 +34,36 @@ def test_uapi_succeeded_accepts_numeric_and_string_status():
 def test_uapi_succeeded_rejects_failed_or_missing_status():
     assert not CpanelBrowserMailboxManager._uapi_succeeded({"result": {"status": 0}})
     assert not CpanelBrowserMailboxManager._uapi_succeeded({"result": {}})
+
+
+
+def test_uapi_result_accepts_standard_nested_envelope():
+    payload = {"result": {"status": 1, "data": [{"email": "qa@example.test"}]}}
+    result = CpanelBrowserMailboxManager._uapi_result(payload)
+    assert result["status"] == 1
+    assert CpanelBrowserMailboxManager._uapi_succeeded(payload)
+
+
+def test_uapi_result_accepts_direct_envelope():
+    payload = {"status": "1", "data": [{"email": "qa@example.test"}], "errors": None}
+    result = CpanelBrowserMailboxManager._uapi_result(payload)
+    assert result["status"] == "1"
+    assert CpanelBrowserMailboxManager._uapi_succeeded(payload)
+
+
+def test_uapi_result_accepts_legacy_cpanelresult_envelope():
+    payload = {
+        "cpanelresult": {
+            "event": {"result": 1},
+            "data": [{"email": "qa@example.test"}],
+        }
+    }
+    result = CpanelBrowserMailboxManager._uapi_result(payload)
+    assert result["status"] == 1
+    assert len(result["data"]) == 1
+    assert CpanelBrowserMailboxManager._uapi_succeeded(payload)
+
+
+def test_uapi_succeeded_rejects_error_envelopes():
+    assert not CpanelBrowserMailboxManager._uapi_succeeded({"result": {"status": 0}})
+    assert not CpanelBrowserMailboxManager._uapi_succeeded({"error": "not authenticated"})
