@@ -216,20 +216,25 @@ class CpanelBrowserMailboxManager:
                   headers: {'Accept': 'application/json'}
                 });
                 result.httpStatus = response.status;
-                result.responseUrl = response.url;
+                const responseUrl = new URL(response.url);
+                result.responseUrl = responseUrl.origin + responseUrl.pathname.replace(/^\\/cpsess[^/]+/, '/cpsess[redacted]');
                 result.redirected = response.redirected;
                 const raw = await response.text();
                 let payload;
                 try { payload = JSON.parse(raw); }
                 catch (_) {
                   result.reason = 'UAPI tidak mengembalikan JSON; kemungkinan diarahkan ke halaman login.';
-                  result.responsePreview = raw.slice(0, 180).replace(/\\s+/g, ' ');
+                  result.responsePreview = raw.slice(0, 180).replace(/\\s+/g, ' ').replace(/cpsess[^/\\s"'<>]+/gi, 'cpsess[redacted]');
                   return result;
                 }
                 const apiStatus = payload?.result?.status;
                 result.apiStatus = apiStatus ?? null;
-                result.apiErrors = payload?.result?.errors ?? null;
-                result.apiMessages = payload?.result?.messages ?? null;
+                const safeText = (value) => {
+                  if (value == null) return null;
+                  return JSON.stringify(value).replace(/cpsess[^/\\s"'<>]+/gi, 'cpsess[redacted]');
+                };
+                result.apiErrors = safeText(payload?.result?.errors);
+                result.apiMessages = safeText(payload?.result?.messages);
                 result.ok = response.ok && String(apiStatus) === '1' && !response.redirected;
                 if (!result.ok) {
                   result.reason = response.redirected
