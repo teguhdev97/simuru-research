@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import base64
-import hashlib
-import hmac
 import imaplib
 import os
 import re
@@ -18,6 +15,8 @@ from email.utils import parsedate_to_datetime
 
 import httpx
 from dotenv import load_dotenv
+
+from simuru_research.security.mailbox_vault import MailboxCredentialVault
 
 OTP_PATTERN = re.compile(r"(?<!\d)(\d{6})(?!\d)")
 LOCAL_PART_PATTERN = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$")
@@ -158,11 +157,15 @@ class MailboxProvisioner:
 
 
 class ImapOTPReader:
-    """Read fresh OTP only from an owned-domain mailbox and allowlisted sender."""
+    """Read fresh OTP from owned QA mailboxes using the actual provisioned credentials."""
 
-    def __init__(self, settings: MailboxSettings) -> None:
+    def __init__(
+        self,
+        settings: MailboxSettings,
+        credential_vault: MailboxCredentialVault | None = None,
+    ) -> None:
         self.settings = settings
-        self.provisioner = MailboxProvisioner(settings)
+        self.credential_vault = credential_vault or MailboxCredentialVault()
 
     def wait_for_otp(
         self,
@@ -185,7 +188,12 @@ class ImapOTPReader:
 
         cutoff = since or (datetime.now(UTC) - timedelta(minutes=5))
         deadline = time.monotonic() + timeout_seconds
-        mailbox_password = self.provisioner.password_for(destination)
+        mailbox_password = self.credential_vault.get(destination)
+        if not mailbox_password:
+            raise MailboxError(
+                "Mailbox password is not available in Windows Credential Manager. "
+                "Create/import the mailbox credentials in Mailbox Manager first."
+            )
 
         while time.monotonic() < deadline:
             try:
@@ -235,15 +243,22 @@ class ImapOTPReader:
 
 
 class SmtpMailboxSender:
-    """Send a mailbox connectivity test to one of the generated QA mailboxes."""
+    """Send a mailbox connectivity test using the provisioned mailbox password."""
 
-    def __init__(self, settings: MailboxSettings) -> None:
+    def __init__(
+        self,
+        settings: MailboxSettings,
+        credential_vault: MailboxCredentialVault | None = None,
+    ) -> None:
         self.settings = settings
-        self.provisioner = MailboxProvisioner(settings)
+        self.credential_vault = credential_vault or MailboxCredentialVault()
 
     def send_test(self, destination: str) -> None:
         if not destination.lower().endswith("@" + self.settings.domain.lower()):
             raise MailboxError("Destination is outside the configured QA domain.")
+        mailbox_password = self.credential_vault.get(destination)
+        if not mailbox_password:
+            raise MailboxError("Mailbox password is not available in Windows Credential Manager.")
         message = EmailMessage()
         message["Subject"] = "SIMURU QA mailbox connectivity test"
         message["From"] = destination
@@ -253,7 +268,7 @@ class SmtpMailboxSender:
         with smtplib.SMTP_SSL(
             self.settings.smtp_host, self.settings.smtp_port, context=context, timeout=20
         ) as client:
-            client.login(destination, self.provisioner.password_for(destination))
+            client.login(destination, mailbox_password)
             client.send_message(message)
 
 
