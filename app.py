@@ -373,7 +373,7 @@ with mailbox_tab:
         if mailbox_rows:
             mailbox_frame = pd.DataFrame(mailbox_rows)
             st.dataframe(
-                mailbox_frame[["email", "status"]],
+                mailbox_frame[["email", "status", "error"]],
                 use_container_width=True,
                 hide_index=True,
             )
