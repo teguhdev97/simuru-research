@@ -136,17 +136,19 @@ class MailboxProvisioner:
                     result = payload.get("result", {})
                     if result.get("status") != 1:
                         details = result.get("errors") or result.get("messages") or []
+                        detail_str = ", ".join(map(str, details)) or "unknown error"
+                        created_str = ", ".join(created) or "none"
                         raise MailboxError(
                             f"cPanel rejected {address} after creating "
-                            f"{len(created)} mailbox(es): "
-                            f"{', '.join(map(str, details)) or 'unknown error'}. "
-                            f"Already created: {', '.join(created) or 'none'}"
+                            f"{len(created)} mailbox(es): {detail_str}. "
+                            f"Already created: {created_str}"
                         )
                     created.append(address)
         except httpx.HTTPError as exc:
+            created_str = ", ".join(created) or "none"
             raise MailboxError(
                 f"cPanel UAPI request failed after {len(created)} mailbox(es): "
-                f"{type(exc).__name__}. Created mailboxes: {', '.join(created) or 'none'}"
+                f"{type(exc).__name__}. Created mailboxes: {created_str}"
             ) from exc
         return tuple(created)
 
