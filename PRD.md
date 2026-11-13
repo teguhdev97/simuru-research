@@ -285,3 +285,16 @@ A feature is complete only when:
 ### UAPI envelope compatibility
 
 The UAPI parser must support the documented nested `result.status` object and direct root-level `status/data/errors` responses. A legacy `cpanelresult.event.result` envelope may be recognized for diagnosis, but new requests continue to use UAPI. Session diagnostics include only structural keys and redacted errors; never dump raw response bodies, email account lists, or session URLs.
+
+
+### 5.7 Unified Mailbox → Google OAuth registration QA
+
+- Mailbox password is read from local `QA_MAILBOX_MASTER_PASSWORD`; never commit it.
+- Existing generated mailboxes may be explicitly reset to that configured password.
+- New batches use the same configured password.
+- The Google OAuth registration section remains hidden until all five mailboxes are verified.
+- The section accepts a dynamic authorized registration URL, lets the user select one
+  of the five test identities, inspects the page for Google sign-in controls, and opens
+  it in the local Chromium session.
+- Google Account creation, account selection, consent, CAPTCHA and MFA remain owner-
+  supervised manual steps. A mailbox alone is not a Google Account.
