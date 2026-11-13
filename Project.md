@@ -31,7 +31,7 @@
 | Overview | Team metadata counts and latest QA run |
 | Team Accounts | Metadata registry for existing team-managed accounts |
 | Sandbox Batch | Synthetic local test identities and bounded concurrency |
-| Mailbox Manager | Open local Chromium, manually authenticate to cPanel, inspect UAPI session, create a bounded mailbox batch |
+| Mailbox Manager | Open local Chromium, manually authenticate to cPanel, inspect UAPI session, create exactly five mailboxes per batch |
 | Website Automation | Visual website profile editor and read-only Playwright form inspection |
 | Registration QA | End-to-end local registration/email/SMS/login tests using local fixtures |
 | Run History & Export | Review persisted QA results and export CSV |
@@ -66,7 +66,7 @@ The current browser-session integration does **not** require a cPanel API token.
 
 ### Current diagnostic change
 
-The Mailbox Manager includes a **Check cPanel Session** action. It checks all open cPanel tabs and reports:
+The Mailbox Manager includes a **Check cPanel Session** action. It checks all open cPanel tabs automatically every three seconds in the dashboard and reports:
 - whether a cPanel tab was found;
 - whether the URL contains a cPanel session prefix (the session ID is redacted in diagnostics);
 - HTTP status and redirect behavior of the UAPI request;
@@ -164,3 +164,24 @@ Before making changes:
 - Improve the form inspector with interactive element picking and iframe-aware inspection.
 - Add OAuth test configuration for applications the operator owns, using official Google OAuth flows.
 - Add CI that runs pytest and Ruff on pull requests.
+
+
+## 12. Five-mailbox and Google OAuth gated workflow
+
+The current Mailbox Manager creates exactly five new mailboxes, then lists all
+mailboxes again and marks the batch complete only when all five addresses are found.
+The dashboard status fragment polls cPanel UAPI every three seconds, so manual login
+in Chromium is reflected without requiring a manual page refresh.
+
+Only after a five-of-five verified batch does the UI reveal **Google OAuth · Prepare
+Test Users**. This panel:
+- shows and exports the five mailbox addresses;
+- explains how to create a Google Account using each existing mailbox address;
+- links to Google Auth Platform → Audience → Test users;
+- saves the Google Cloud project name, OAuth Client ID, redirect URI, and five addresses
+  locally in data/google_oauth_qa.json;
+- never asks for or stores a Google Client Secret.
+
+Google Account creation and adding test users remain manual owner actions. An email
+mailbox by itself is not a Google Account. OAuth test-user entries must refer to
+actual Google Accounts. See PRD.md for acceptance criteria.
