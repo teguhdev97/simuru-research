@@ -172,7 +172,12 @@ class LocalAuthQAService:
                 ORDER BY message_id DESC
                 LIMIT 1
                 """,
-                (channel, destination.strip().lower() if channel == "email" else destination.strip()),
+                (
+                    channel,
+                    destination.strip().lower()
+                    if channel == "email"
+                    else destination.strip(),
+                ),
             ).fetchone()
 
         if row is None:
