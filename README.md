@@ -28,7 +28,7 @@ Business), not consumer/personal Instagram accounts. A Meta app test user is not
 new Instagram account. This repository does not claim to create or connect Instagram
 accounts.
 
-## New in v0.5.0: Local Registration QA
+## v0.6.0: Local Registration QA with Mailpit
 
 The **Registration QA** tab now runs up to 100 end-to-end test registrations for
 the team's own local application. The default batch is 40 jobs with 3 concurrent
