@@ -4,8 +4,8 @@ import pandas as pd
 import streamlit as st
 
 from simuru_research.config.settings import Settings
-from simuru_research.engine.registration_qa import LocalRegistrationQARunner
 from simuru_research.engine.mailbox_batch import FiveMailboxBatchRunner
+from simuru_research.engine.registration_qa import LocalRegistrationQARunner
 from simuru_research.engine.runner import BatchRunner
 from simuru_research.providers.mailbox import MailboxError, MailboxSettings
 from simuru_research.providers.simuru_client import SimuruAPIError, SimuruClient
