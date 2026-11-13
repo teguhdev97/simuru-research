@@ -416,3 +416,26 @@ does not automate Google Account creation or bypass Google's account-security fl
 
 Official guides: [Create a Google Account using an existing email](https://support.google.com/accounts/answer/27441)
 and [Configure OAuth consent / test users](https://developers.google.com/workspace/guides/configure-oauth-consent).
+
+
+### Integrated five-mailbox → Google OAuth QA workflow
+
+The Mailbox Manager uses the local `QA_MAILBOX_MASTER_PASSWORD` setting for a
+consistent temporary password. Put it only in your ignored local `.env` file, not
+in GitHub. For the requested test value, add this line locally:
+
+```dotenv
+QA_MAILBOX_MASTER_PASSWORD=Standard@321!
+```
+
+The five mailboxes already created with random passwords can be selected and reset
+using **Set same password for these 5 mailboxes** after the cPanel session is verified.
+New batches use the configured password from the start. This shared password is only
+for short-lived QA and should be rotated after testing.
+
+Once all five mailboxes are verified, the same Mailbox Manager shows **Google OAuth
+Registration QA**. Enter the authorized staging/local registration URL, select one
+of the five test identities, confirm the Google Accounts are already set up and added
+as OAuth Test Users, then inspect the page and open it in Chromium. Google account
+selection, consent, CAPTCHA and MFA remain manual; this flow does not create Google
+Accounts from mailboxes.
