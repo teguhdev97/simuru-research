@@ -58,6 +58,14 @@ class FakeContext:
         return self.page
 
 
+class FakeBrowser:
+    def __init__(self, context: FakeContext) -> None:
+        self.context = context
+
+    def new_context(self) -> FakeContext:
+        return self.context
+
+
 def manager() -> CpanelBrowserMailboxManager:
     return CpanelBrowserMailboxManager(
         cpanel_url="https://cpanel.example.test:2083",
@@ -72,7 +80,7 @@ def test_email_fallback_submits_five_unique_qa_identities(monkeypatch):
 
     @contextmanager
     def attached_browser():
-        yield None, context, [context.page]
+        yield FakeBrowser(context), context, [context.page]
 
     monkeypatch.setattr(browser_manager, "_attached_browser", attached_browser)
     identities = [
