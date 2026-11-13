@@ -1,17 +1,79 @@
 # Simuru Research
 
-Windows research workspace for exploring the official SIMURU API through a local
-Streamlit dashboard, plus a separate synthetic QA sandbox.
+Local Windows research workspace for exploring the official SIMURU API, managing
+metadata for existing team Instagram accounts, and running synthetic QA batches.
 
 ## Current release
 
-- Version: 0.3.0
+- Version: 0.4.0
 - Python: 3.12
+- Runtime: local Windows machine
 - API base URL: https://simuru.com/api
-- API documentation: https://simuru.com/api-docs
-- Machine-readable specification: https://simuru.com/openapi.json
+- SIMURU API documentation: https://simuru.com/api-docs
+- Meta Instagram API documentation: https://www.postman.com/meta/instagram/documentation/
 
-## Included SIMURU API integration
+## Important platform boundaries
+
+This project does **not** create Instagram accounts, automate Instagram sign-up,
+rent temporary phone numbers or email inboxes, retrieve Instagram OTPs, or bypass
+Instagram verification and anti-abuse controls.
+
+SIMURU's own Terms of Service prohibit mass-creating fake accounts and evading bans.
+Use SIMURU only for accounts and activities you own or are lawfully authorized to
+manage, and follow the provider's current terms.
+
+Meta's official Instagram APIs are for eligible Instagram professional accounts
+(Business and Creator). Consumer/personal Instagram accounts are not available
+through the Instagram API. A Meta Graph API Test User is a Facebook app test user;
+it is not a newly created Instagram account.
+
+## Team Account Registry (v0.4.0)
+
+The local **Team Accounts** tab records existing Instagram accounts that the team
+owns or is explicitly authorized to manage.
+
+Stored fields:
+
+- Instagram username
+- Owner/team label
+- Account type: personal, creator, or business
+- Owner authorization confirmation
+- Local API-readiness status
+- Optional notes and timestamps
+
+The registry supports:
+
+- Adding one existing account at a time.
+- Importing authorized account metadata from CSV.
+- Exporting the registry to CSV.
+- Counting accounts by type.
+- Duplicate username detection (case-insensitive).
+
+### Account type behavior
+
+| Account type | Registry behavior | Instagram API |
+| --- | --- | --- |
+| Personal | Metadata registry only | Not supported by the official Instagram API |
+| Creator | Pending Meta OAuth setup | Eligible, subject to app setup and permissions |
+| Business | Pending Meta OAuth setup | Eligible, subject to app setup and permissions |
+
+Changing a Personal account to Professional can affect privacy and account features.
+Only the account owner should make that change after reviewing Meta's current guidance.
+This application does not change account types.
+
+### CSV format
+
+Required columns:
+
+~~~csv
+username,owner_label,account_type,owner_approved,notes
+sample_team_account,Marketing Team,personal,true,Replace with an authorized account
+~~~
+
+Only rows with owner_approved=true are imported. Do not include passwords, OTPs,
+phone numbers, email credentials, session cookies, or access tokens in this CSV.
+
+## SIMURU API integration
 
 The API client follows the public SIMURU documentation and authenticates with the
 **X-API-KEY** request header. The API key is loaded from the local **.env** file.
@@ -31,8 +93,7 @@ Read-only endpoints currently implemented:
 | Country performance insights | GET /insights/countries |
 
 The dashboard is split into Account, Services & Pricelist, and Country Insights.
-The complete price list can be downloaded as CSV. Its preview is limited to 100 rows
-so the browser does not need to render the entire catalog at once.
+The complete price list can be downloaded as CSV.
 
 ### Deliberate transaction boundary
 
@@ -44,14 +105,7 @@ email rental, OTP retrieval, deposits, or social-media booster actions.
 The API key is never embedded in source code or sent in a URL. Keep **.env** private;
 it is excluded by **.gitignore**.
 
-### Rate limits and catalog freshness
-
-- General documented API rate limit: 1,200 requests/minute per API key.
-- Complete pricelist endpoint: 30 requests/minute and a documented 60-second cache.
-- The API client requests gzip compression to reduce catalog transfer size.
-- Use the dashboard buttons deliberately; it does not poll endpoints automatically.
-
-## Local sandbox
+## Synthetic QA sandbox
 
 The separate sandbox batch runner tests concurrency, SQLite persistence, and CSV
 export using fictional identities only:
@@ -63,6 +117,18 @@ export using fictional identities only:
 
 Sandbox identities are not sent to SIMURU or to any third-party registration service.
 The sandbox does not create external accounts or retrieve verification codes.
+
+## Future Meta OAuth integration
+
+A later release can add OAuth for existing Creator/Business accounts after:
+
+1. The team selects one Meta app and verifies that the Instagram API product is enabled.
+2. An account owner explicitly authorizes the app through Meta's official login flow.
+3. The app is configured with the required redirect URI, permissions, roles, and review/access level.
+4. The app stores tokens in an OS-backed secret store, not in source control or CSV files.
+
+This release does not implement Meta OAuth or claim that any Instagram account is connected.
+Do not paste Meta App Secret or access tokens into chat or commit them to GitHub.
 
 ## Requirements
 
@@ -93,7 +159,7 @@ Create your local environment file:
 Copy-Item .env.example .env
 ~~~
 
-Open **.env** and add your API key locally:
+Open **.env** and add your SIMURU API key locally:
 
 ~~~env
 SIMURU_BASE_URL=https://simuru.com/api
@@ -105,7 +171,7 @@ DEFAULT_MAX_WORKERS=3
 
 Do not commit the real API key. The **.env** file is ignored by Git.
 
-## Run the dashboard
+## Run the dashboard locally
 
 ~~~powershell
 uv run streamlit run app.py
@@ -119,15 +185,14 @@ http://localhost:8501
 
 ### Dashboard tabs
 
-1. **Overview** — latest local sandbox run.
-2. **Sandbox Batch** — run synthetic QA jobs with bounded concurrency.
-3. **Run History & Export** — inspect previous runs and download CSV.
-4. **SIMURU API / Account** — read profile and balance.
-5. **SIMURU API / Services & Pricelist** — browse services, countries, prices, operators, and offers.
-6. **SIMURU API / Country Insights** — inspect country performance summaries.
+1. **Overview** — team account counts and latest synthetic QA run.
+2. **Team Accounts** — add, import, inspect, and export authorized account metadata.
+3. **Sandbox Batch** — run synthetic QA jobs with bounded concurrency.
+4. **Run History & Export** — inspect previous runs and download CSV.
+5. **SIMURU API** — browse account profile, balance, services, countries, prices, and insights.
 
 SIMURU requests are only sent after the corresponding button is clicked. No API key
-is required to use the local sandbox.
+is required to use the local registry or sandbox.
 
 ## CLI usage
 
@@ -137,7 +202,7 @@ Run a 40-job local sandbox batch with three workers:
 uv run simuru-research --jobs 40 --workers 3
 ~~~
 
-The CLI writes results to the SQLite database configured by **DATABASE_PATH**.
+The CLI writes results to the SQLite database configured by DATABASE_PATH.
 
 ## Tests and lint
 
@@ -167,8 +232,10 @@ simuru-research/
 │       │   └── simuru_client.py
 │       └── storage/
 │           ├── database.py
-│           └── exporter.py
+│           ├── exporter.py
+│           └── team_accounts.py
 └── tests/
     ├── test_runner.py
-    └── test_simuru_client.py
+    ├── test_simuru_client.py
+    └── test_team_accounts.py
 ~~~
