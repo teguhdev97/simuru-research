@@ -686,6 +686,7 @@ with mailbox_tab:
                         st.session_state["integrated_oauth_email"] = selected_test_email
                         st.session_state["integrated_oauth_authorized"] = True
                         st.session_state["integrated_oauth_accounts_ready"] = accounts_ready
+                        st.session_state.pop("email_fallback_results", None)
                         st.success(
                             f"Halaman diperiksa: {inspection.get('title') or inspection.get('url')}. "
                             f"{len(inspection.get('google_buttons', []))} kontrol Google terdeteksi."
@@ -697,6 +698,9 @@ with mailbox_tab:
                 google_controls = oauth_inspection.get("google_buttons", [])
 
                 def run_email_registration_fallback():
+                    if not st.session_state.get("integrated_oauth_authorized", False):
+                        st.error("Konfirmasi kepemilikan website diperlukan sebelum email fallback.")
+                        return
                     selectors = oauth_inspection.get("selectors", {})
                     required = ("email", "password", "submit")
                     missing = [
@@ -753,7 +757,11 @@ with mailbox_tab:
                         "Kamu tetap menyelesaikan pemilihan Google Account, login, consent, CAPTCHA, dan MFA."
                     )
                     if st.button(
-                        "Start Google OAuth registration",
+                        (
+                            "Start Google OAuth registration"
+                            if st.session_state.get("integrated_oauth_accounts_ready", False)
+                            else "Start email registration fallback (5)"
+                        ),
                         type="primary",
                         use_container_width=True,
                         key="start_google_oauth_registration",
@@ -793,6 +801,7 @@ with mailbox_tab:
                         type="primary",
                         use_container_width=True,
                         key="start_email_registration_fallback",
+                        disabled=bool(st.session_state.get("email_fallback_results")),
                     ):
                         run_email_registration_fallback()
 
@@ -819,6 +828,9 @@ with mailbox_tab:
                         mime="text/csv",
                         key="download_email_fallback_results",
                     )
+                    if st.button("Clear email fallback results (allow rerun)", key="clear_email_fallback_results"):
+                        st.session_state.pop("email_fallback_results", None)
+                        st.rerun()
                 st.caption(
                     "Ulangi satu per satu untuk setiap test identity. Pastikan akun Google sudah "
                     "terdaftar; mailbox saja belum cukup untuk login Google."
