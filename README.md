@@ -453,3 +453,24 @@ the OAuth callback that validates Google's ID token and creates or links its loc
 
 This launcher does not create Google Accounts. A mailbox address alone is not a
 Google Account.
+
+
+## Local mailbox credentials and IMAP OTP
+
+The browser-session cPanel workflow creates exactly five mailboxes without a cPanel API token. Passwords for verified mailboxes are stored in the local Windows Credential Manager through `keyring`; they are never written to the SQLite run history. The exact password submitted to cPanel is the password used by IMAP and optional SMTP.
+
+- If `QA_MAILBOX_MASTER_PASSWORD` is blank, each newly created mailbox gets a different cryptographically random password.
+- If a shared QA password is entered in the dashboard, the same value is submitted for the five new mailboxes. Use only temporary QA secrets.
+- To use mailboxes created before the credential vault was added, expand **Import existing mailbox password from CSV**, enter each old QA address and its password from the previously downloaded CSV, and save it to Windows Credential Manager.
+- **Check IMAP connection** authenticates and opens INBOX; it does not wait for an email.
+- **Wait for fresh verification code** is separate. Configure exact sender addresses/domains in `QA_OTP_ALLOWED_SENDERS` before using it. The reader only searches fresh unseen messages and configured subjects.
+- SMTP is optional. Incoming OTP requires IMAP only.
+
+Example local `.env` values (confirm host/ports against cPanel → Email Accounts → Connect Devices):
+
+```dotenv
+QA_IMAP_HOST=mail.teguhharits.com
+QA_IMAP_PORT=993
+QA_OTP_ALLOWED_SENDERS=verification-sender@example.test
+QA_OTP_SUBJECT_KEYWORDS=verification,verify,otp,code
+```
