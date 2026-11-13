@@ -7,6 +7,7 @@ from simuru_research.config.settings import Settings
 from simuru_research.engine.mailbox_batch import FiveMailboxBatchRunner
 from simuru_research.engine.registration_qa import LocalRegistrationQARunner
 from simuru_research.engine.runner import BatchRunner
+from simuru_research.providers.cpanel_browser import CpanelBrowserMailboxManager
 from simuru_research.providers.mailbox import MailboxError, MailboxSettings
 from simuru_research.providers.simuru_client import SimuruAPIError, SimuruClient
 from simuru_research.security.auth_qa import LocalAuthQAService
@@ -46,11 +47,12 @@ with st.sidebar:
     st.caption("Registration QA uses local-only test identities and a local OTP outbox.")
     st.caption("No Instagram signup, external OTP retrieval, or provider rental is performed.")
 
-overview_tab, team_tab, sandbox_tab, registration_qa_tab, history_tab, api_tab = st.tabs(
+overview_tab, team_tab, sandbox_tab, mailbox_tab, registration_qa_tab, history_tab, api_tab = st.tabs(
     [
         "Overview",
         "Team Accounts",
         "Sandbox Batch",
+        "Mailbox Manager",
         "Registration QA",
         "Run History & Export",
         "SIMURU API",
@@ -278,6 +280,71 @@ with sandbox_tab:
                 use_container_width=True,
                 hide_index=True,
             )
+
+@st.cache_resource
+def get_cpanel_mailbox_manager() -> CpanelBrowserMailboxManager:
+    return CpanelBrowserMailboxManager(
+        cpanel_url="https://juwana.iixcp.rumahweb.net:2083",
+        domain="teguhharits.com",
+        prefix="qa",
+        quota_mb=50,
+    )
+
+
+with mailbox_tab:
+    st.subheader("Mailbox Manager · Rumahweb cPanel")
+    st.write(
+        "Buat delapan mailbox baru sekaligus pada domain teguhharits.com. "
+        "Browser cPanel akan dibuka secara lokal; login dilakukan manual oleh pemilik akun."
+    )
+    st.info(
+        "SIMURU tidak menyimpan password cPanel, cookie, atau cpsess. "
+        "Sesi login hanya berada di profil Chromium lokal pada laptop ini."
+    )
+    try:
+        cpanel_manager = get_cpanel_mailbox_manager()
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("Connect cPanel", type="primary", use_container_width=True):
+                current_url = cpanel_manager.connect()
+                st.success(
+                    "Browser cPanel dibuka. Selesaikan login di jendela Chromium, "
+                    "lalu kembali ke tab ini."
+                )
+        with c2:
+            if st.button("Close cPanel browser", use_container_width=True):
+                cpanel_manager.close()
+                st.info("Browser cPanel ditutup.")
+        if st.button(
+            "Create 8 New Emails",
+            type="primary",
+            use_container_width=True,
+            key="create_eight_mailboxes",
+        ):
+            with st.spinner("Memeriksa sesi cPanel dan membuat delapan mailbox..."):
+                mailbox_rows = cpanel_manager.create_eight()
+            verified_count = sum(row["status"] == "created" for row in mailbox_rows)
+            st.success(
+                f"Batch selesai: {verified_count}/8 mailbox terverifikasi. "
+                "Simpan kredensial sekarang; password hanya ditampilkan pada hasil batch ini."
+            )
+            mailbox_frame = pd.DataFrame(mailbox_rows)
+            st.dataframe(mailbox_frame, use_container_width=True, hide_index=True)
+            st.download_button(
+                "Download 8 mailbox credentials (CSV)",
+                data=mailbox_frame.to_csv(index=False).encode("utf-8"),
+                file_name="simuru-eight-mailboxes.csv",
+                mime="text/csv",
+            )
+            st.session_state["latest_mailbox_batch"] = mailbox_rows
+        previous_batch = st.session_state.get("latest_mailbox_batch")
+        if previous_batch:
+            st.caption("Hasil batch terakhir pada sesi dashboard ini:")
+            st.dataframe(pd.DataFrame(previous_batch), use_container_width=True, hide_index=True)
+    except MailboxError as exc:
+        st.error(str(exc))
+    except Exception as exc:
+        st.error(f"cPanel browser error: {type(exc).__name__}: {exc}")
 
 with registration_qa_tab:
     st.subheader("Create five real QA mailboxes")
