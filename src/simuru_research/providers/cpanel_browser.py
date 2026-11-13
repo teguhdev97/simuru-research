@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import secrets
 import string
 import subprocess
@@ -164,6 +165,7 @@ class CpanelBrowserMailboxManager:
                   headers: {'Accept': 'application/json'}
                 });
                 result.httpStatus = response.status;
+                result.contentType = response.headers.get('content-type') || '';
                 const responseUrl = new URL(response.url);
                 result.responseUrl = responseUrl.origin + responseUrl.pathname.replace(/^\\/cpsess[^/]+/, '/cpsess[redacted]');
                 result.redirected = response.redirected;
@@ -174,8 +176,7 @@ class CpanelBrowserMailboxManager:
                   payload = JSON.parse(raw);
                 } catch (_) {
                   result.reason = 'UAPI tidak mengembalikan JSON; kemungkinan dialihkan ke halaman login.';
-                  result.responsePreview = raw.slice(0, 240).replace(/\\s+/g, ' ')
-                    .replace(/cpsess[^/\\s"'<>]+/gi, 'cpsess[redacted]');
+
                   return result;
                 }
 
@@ -183,8 +184,12 @@ class CpanelBrowserMailboxManager:
                 const safe = (value) => value == null ? null
                   : JSON.stringify(value).replace(/cpsess[^/\\s"'<>]+/gi, 'cpsess[redacted]');
                 result.apiStatus = apiStatus ?? null;
-                result.apiErrors = safe(payload?.result?.errors);
-                result.apiMessages = safe(payload?.result?.messages);
+                const useful = (value) => value != null
+                  && !(Array.isArray(value) && value.length === 0)
+                  && !(typeof value === 'string' && value.trim() === '');
+                result.apiErrors = useful(payload?.result?.errors) ? safe(payload.result.errors) : null;
+                result.apiMessages = useful(payload?.result?.messages) ? safe(payload.result.messages) : null;
+                result.apiWarnings = useful(payload?.result?.warnings) ? safe(payload.result.warnings) : null;
                 result.resultKeys = payload?.result && typeof payload.result === 'object'
                   ? Object.keys(payload.result) : [];
                 result.dataType = Array.isArray(payload?.result?.data)
@@ -193,8 +198,8 @@ class CpanelBrowserMailboxManager:
                 if (!result.ok) {
                   result.reason = response.redirected
                     ? 'UAPI dialihkan ke halaman lain; sesi mungkin kedaluwarsa.'
-                    : (result.apiErrors || result.apiMessages
-                      || safe(payload?.result) || 'UAPI mengembalikan status selain 1.');
+                    : (result.apiErrors || result.apiMessages || result.apiWarnings
+                      || 'UAPI mengembalikan status selain 1. Periksa HTTP status, API status, dan result keys di diagnostik.');
                 }
                 return result;
               } catch (error) {
@@ -218,7 +223,9 @@ class CpanelBrowserMailboxManager:
             except Exception as exc:
                 diagnostics.append({
                     "pageUrl": "cPanel tab (URL disamarkan)",
-                    "reason": f"{type(exc).__name__}: {exc}",
+                    "reason": re.sub(
+                        r"cpsess[^/\\s\"'<>]+", "cpsess[redacted]", f"{type(exc).__name__}: {exc}"
+                    ),
                 })
         return None, diagnostics
 
