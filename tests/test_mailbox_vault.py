@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import pytest
 import keyring
+import pytest
 
 from simuru_research.security.mailbox_vault import MailboxCredentialVault
 
@@ -29,6 +29,11 @@ def test_vault_save_many_ignores_unverified_rows(monkeypatch):
         keyring,
         "set_password",
         lambda service, username, password: values.__setitem__((service, username), password),
+    )
+    monkeypatch.setattr(
+        keyring,
+        "get_password",
+        lambda service, username: values.get((service, username)),
     )
     vault = MailboxCredentialVault()
     vault.save_many([
