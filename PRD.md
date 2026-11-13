@@ -101,7 +101,7 @@ SIMURU Research is a local-first, configurable QA workbench. Users configure tar
 
 **Acceptance criteria**
 - Remote URLs require HTTPS; localhost may use HTTP.
-- Inspector does not submit forms, click login controls, or enter credentials.
+- The inspector itself is read-only; a separate executor may submit only the explicitly authorized owned-site QA registration form.
 - Selector suggestions are unique within the inspected document where possible.
 - Google sign-in buttons are detected as metadata only.
 - Inspection failures explain whether the page was inaccessible, timed out, or had no recognizable controls.
@@ -156,7 +156,7 @@ SIMURU Research is a local-first, configurable QA workbench. Users configure tar
 | FR-012 | QA run history and CSV export | P1 |
 | FR-013 | Project and PRD documents stay current | P0 |
 | FR-014 | Session status automatically refreshes while the Mailbox Manager is open | P0 |
-| FR-015 | Create exactly five mailboxes and verify all five before revealing Google OAuth preparation | P0 |
+| FR-015 | Create exactly five mailboxes and verify all five before revealing registration QA | P0 |\n| FR-016 | Fall back to exactly five sequential email/password registrations when Google OAuth is unavailable or cannot be clicked on an authorized website | P0 |
 
 ## 7. Non-functional requirements
 
@@ -299,6 +299,22 @@ The UAPI parser must support the documented nested `result.status` object and di
 - Google Account creation, account selection, consent, CAPTCHA and MFA remain owner-
   supervised manual steps. A mailbox alone is not a Google Account.
 
+
+### 5.8 Five-identity email registration fallback
+
+- The flow is available only after exactly five QA mailboxes are created and verified.
+- The operator must explicitly confirm ownership or authorization for the target website.
+- When Google OAuth is unavailable, not configured for the test identities, or its control
+  cannot be clicked, submit the site's email/password registration form sequentially
+  for the five generated QA mailbox addresses.
+- Use detected or operator-reviewed CSS selectors for name, email, password,
+  optional password confirmation, and submit.
+- Generate a unique temporary website password for each identity; keep credentials in
+  the local Streamlit session and provide a CSV download. Do not store them in SQLite.
+- Record the result as `submitted` only after the browser submit action completes.
+  Do not claim that the user account is verified or created solely from a successful click.
+- Respect the target application's email verification, OTP, CAPTCHA, rate limits, and
+  other controls; do not bypass them.
 
 ### 5.9 Google OAuth registration launcher
 
