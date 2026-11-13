@@ -383,12 +383,18 @@ with mailbox_tab:
                 st.session_state["latest_mailbox_batch"] = mailbox_rows
                 successful = sum(row.get("status") == "created" for row in mailbox_rows)
                 if successful == 5 and len(mailbox_rows) == 5:
-                    st.success("Berhasil membuat dan memverifikasi kelima mailbox.")
+                    st.session_state["mailbox_workflow_alert"] = {
+                        "kind": "success",
+                        "message": "Berhasil membuat dan memverifikasi kelima mailbox.",
+                    }
                 else:
-                    st.error(
-                        f"Baru {successful}/5 mailbox terverifikasi. "
-                        "Tahap Google OAuth belum dibuka."
-                    )
+                    st.session_state["mailbox_workflow_alert"] = {
+                        "kind": "error",
+                        "message": (
+                            f"Baru {successful}/5 mailbox terverifikasi. "
+                            "Tahap Google OAuth belum dibuka. Periksa tabel hasil."
+                        ),
+                    }
             except MailboxError as exc:
                 st.session_state["mailbox_workflow_alert"] = {
                     "kind": "error",
@@ -440,7 +446,10 @@ with mailbox_tab:
                             st.warning("Sebagian password belum berhasil diperbarui.")
                             st.dataframe(pd.DataFrame(reset_rows), hide_index=True)
                     except MailboxError as exc:
-                        st.error(str(exc))
+                        st.session_state["mailbox_workflow_alert"] = {
+                            "kind": "error",
+                            "message": str(exc),
+                        }
             else:
                 st.info("Password acak unik sedang digunakan. Isi field Shared QA mailbox password untuk menyamakan password kelima mailbox.")
 
