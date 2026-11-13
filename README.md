@@ -293,6 +293,7 @@ git pull --ff-only origin feat/internal-registration-qa-v0.5.0
 Install dependencies:
 
 ~~~powershell
+uv lock
 uv sync --extra dev
 ~~~
 
