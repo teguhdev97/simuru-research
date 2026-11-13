@@ -14,6 +14,7 @@ from urllib.request import urlopen
 from playwright.sync_api import Browser, BrowserContext, Page, Playwright, sync_playwright
 
 from simuru_research.providers.mailbox import MailboxError
+from simuru_research.security.mailbox_vault import MailboxCredentialVault
 
 
 class CpanelBrowserMailboxManager:
@@ -34,6 +35,7 @@ class CpanelBrowserMailboxManager:
         profile_dir: str = "data/cpanel-browser-profile",
         debug_port: int = 9222,
         mailbox_password: str | None = None,
+        credential_vault: MailboxCredentialVault | None = None,
     ) -> None:
         self.cpanel_url = cpanel_url.rstrip("/")
         self.domain = domain.lower()
@@ -42,6 +44,7 @@ class CpanelBrowserMailboxManager:
         self.profile_dir = Path(profile_dir)
         self.debug_port = debug_port
         self.mailbox_password = mailbox_password or os.getenv("QA_MAILBOX_MASTER_PASSWORD", "").strip()
+        self.credential_vault = credential_vault or MailboxCredentialVault()
 
         if not self.cpanel_url.startswith("https://"):
             raise MailboxError("cPanel must use HTTPS.")
@@ -465,8 +468,25 @@ class CpanelBrowserMailboxManager:
                             f"Mailbox belum dapat diverifikasi: {type(exc).__name__}. "
                             "Jangan menganggap batch ini berhasil."
                         )
+            try:
+                self.credential_vault.save_many(created)
+            except RuntimeError as exc:
+                for record in created:
+                    if record.get('status') == 'created':
+                        record['credential_storage'] = 'failed'
+                        record['error'] = str(exc)
             return created
 
+    def import_mailbox_credential(self, email: str, password: str) -> None:
+        """Import an owner-provided QA mailbox password into the local OS credential store."""
+        normalized = email.strip().lower()
+        if not normalized.endswith('@' + self.domain):
+            raise MailboxError('Mailbox email is outside the configured domain.')
+        if not normalized.split('@', 1)[0].startswith(self.prefix + '-'):
+            raise MailboxError('Mailbox email does not use the configured QA prefix.')
+        if not password:
+            raise MailboxError('Mailbox password cannot be empty.')
+        self.credential_vault.save_many([{'email': normalized, 'password': password, 'status': 'created'}])
     def reset_mailbox_passwords(self, emails: list[str]) -> list[dict[str, str]]:
         """Reset up to five explicitly selected QA mailboxes to the local master password."""
         if len(self.mailbox_password) < 12:
@@ -501,7 +521,10 @@ class CpanelBrowserMailboxManager:
                     }""",
                     {"localPart": local_part, "domain": self.domain, "password": self.mailbox_password},
                 )
-                results.append({"email": email, "status": "updated" if self._uapi_succeeded(payload) else "failed"})
+                updated = self._uapi_succeeded(payload)
+                results.append({"email": email, "status": "updated" if updated else "failed"})
+                if updated:
+                    self.credential_vault.save_many([{"email": email, "password": self.mailbox_password, "status": "created"}])
         return results
 
     @staticmethod
