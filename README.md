@@ -7,7 +7,7 @@ synthetic registration/verification QA against a **local sandbox only**.
 
 This project is deliberately limited to:
 
-- A read-only Simuru API connection check using \`GET /api/profile\`.
+- A read-only Simuru API connection check using **GET /api/profile**.
 - A local sandbox batch runner for up to 200 synthetic test identities.
 - A bounded worker pool (default: 3 workers; maximum: 10).
 - SQLite run history and CSV export.
@@ -15,7 +15,7 @@ This project is deliberately limited to:
 
 The sandbox generates reserved test identities only:
 
-- Email addresses under \`example.test\`.
+- Email addresses under **example.test**.
 - Fictional phone numbers in the North American 555-0100–0199 range.
 - No real inboxes, phone numbers, OTPs, passwords, or third-party accounts.
 
@@ -29,53 +29,53 @@ platform anti-abuse controls. Do not add those workflows to this project.
 - Python 3.12
 - [uv](https://docs.astral.sh/uv/)
 
-The repository pins Python 3.12 in \`.python-version\`.
+The repository pins Python 3.12 in **.python-version**.
 
 ## Setup on Windows PowerShell
 
 Clone the repository:
 
-\`\`\`powershell
+~~~powershell
 git clone https://github.com/teguhdev97/simuru-research.git
 cd simuru-research
-\`\`\`
+~~~
 
 Install dependencies:
 
-\`\`\`powershell
+~~~powershell
 uv sync --extra dev
-\`\`\`
+~~~
 
 Create your local environment file:
 
-\`\`\`powershell
+~~~powershell
 Copy-Item .env.example .env
-\`\`\`
+~~~
 
-Open \`.env\` and optionally add your Simuru API key:
+Open **.env** and optionally add your Simuru API key:
 
-\`\`\`env
+~~~env
 SIMURU_BASE_URL=https://simuru.com/api
 SIMURU_API_KEY=your_api_key_here
 DATABASE_PATH=data/simuru_research.sqlite3
 DEFAULT_TOTAL_JOBS=40
 DEFAULT_MAX_WORKERS=3
-\`\`\`
+~~~
 
-The API key is optional. The local sandbox works without it. Keep \`.env\` private;
-it is excluded by \`.gitignore\`.
+The API key is optional. The local sandbox works without it. Keep **.env** private;
+it is excluded by **.gitignore**.
 
 ## Run the dashboard
 
-\`\`\`powershell
+~~~powershell
 uv run streamlit run app.py
-\`\`\`
+~~~
 
 Open the local URL printed by Streamlit, usually:
 
-\`\`\`text
+~~~text
 http://localhost:8501
-\`\`\`
+~~~
 
 ### Dashboard features
 
@@ -92,25 +92,25 @@ purchase, rental, order, inbox, phone, or OTP endpoints.
 
 Run a 40-job local sandbox batch with three workers:
 
-\`\`\`powershell
+~~~powershell
 uv run simuru-research --jobs 40 --workers 3
-\`\`\`
+~~~
 
-The CLI writes results to the SQLite database configured by \`DATABASE_PATH\`.
+The CLI writes results to the SQLite database configured by DATABASE_PATH.
 
 ## Tests and lint
 
-\`\`\`powershell
+~~~powershell
 uv run pytest
 uv run ruff check .
-\`\`\`
+~~~
 
 All tests use mocked HTTP responses or local SQLite files; they do not spend API
 balance or contact third-party registration services.
 
 ## Project layout
 
-\`\`\`text
+~~~text
 simuru-research/
 ├── app.py
 ├── .env.example
@@ -127,4 +127,4 @@ simuru-research/
 └── tests/
     ├── test_runner.py
     └── test_simuru_client.py
-\`\`\`
+~~~
