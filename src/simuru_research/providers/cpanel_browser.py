@@ -80,7 +80,7 @@ class CpanelBrowserMailboxManager:
         self._playwright = sync_playwright().start()
         try:
             self._browser = self._playwright.chromium.connect_over_cdp(
-                self._cdp_url, timeout=10_000
+                self._cdp_url, timeout=60_000
             )
         except Exception:
             self._playwright.stop()
@@ -138,7 +138,15 @@ class CpanelBrowserMailboxManager:
                     "aplikasi lain, lalu coba lagi."
                 )
 
-        self._attach()
+        try:
+            self._attach()
+        except Exception as exc:
+            raise MailboxError(
+                "Chromium aktif tetapi Playwright gagal menyelesaikan handshake CDP. "
+                "Tutup semua proses Chromium SIMURU, pastikan port 9222 tidak dipakai, "
+                "lalu klik Connect cPanel lagi. Detail: "
+                f"{type(exc).__name__}"
+            ) from exc
         assert self._page is not None
         if self._page.url in {"about:blank", "chrome://newtab/"}:
             self._page.goto(self.cpanel_url, wait_until="domcontentloaded")
