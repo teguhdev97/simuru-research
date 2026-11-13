@@ -5,7 +5,9 @@ import streamlit as st
 
 from simuru_research.config.settings import Settings
 from simuru_research.engine.registration_qa import LocalRegistrationQARunner
+from simuru_research.engine.mailbox_batch import FiveMailboxBatchRunner
 from simuru_research.engine.runner import BatchRunner
+from simuru_research.providers.mailbox import MailboxError, MailboxSettings
 from simuru_research.providers.simuru_client import SimuruAPIError, SimuruClient
 from simuru_research.security.auth_qa import LocalAuthQAService
 from simuru_research.storage.database import SQLiteRepository
@@ -278,6 +280,41 @@ with sandbox_tab:
             )
 
 with registration_qa_tab:
+    st.subheader("Create five real QA mailboxes")
+    st.write(
+        "Buat tepat lima mailbox baru pada domain milikmu melalui cPanel UAPI. "
+        "Proses ini berjalan dari laptop lokal dan menyimpan daftar alamat ke SQLite."
+    )
+    st.info(
+        "Langkah ini hanya membuat mailbox email. Pendaftaran akun pada aplikasi target "
+        "dan pengisian OTP di browser merupakan tahap QA terpisah."
+    )
+    if st.button(
+        "Create five mailboxes",
+        type="primary",
+        use_container_width=True,
+        key="create_five_qa_mailboxes",
+    ):
+        try:
+            with st.spinner("Creating five mailboxes through cPanel UAPI..."):
+                mailbox_summary = FiveMailboxBatchRunner(
+                    repository,
+                    MailboxSettings.from_env(),
+                ).run_batch()
+            st.success(
+                f"Created {mailbox_summary.passed} mailboxes. "
+                f"Run ID: {mailbox_summary.run_id[:8]}"
+            )
+            st.dataframe(
+                pd.DataFrame([item.to_dict() for item in mailbox_summary.results]),
+                use_container_width=True,
+                hide_index=True,
+            )
+            st.session_state["latest_registration_qa_run"] = mailbox_summary.run_id
+        except (MailboxError, ValueError) as exc:
+            st.error(str(exc))
+
+    st.divider()
     st.subheader("Local Registration + Email/SMS Verification + Login QA")
     st.write(
         "Jalankan workflow registrasi aplikasi internal milik tim. Setiap akun QA "
