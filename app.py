@@ -390,7 +390,11 @@ with mailbox_tab:
                             )
                         st.session_state["mailbox_password_reset"] = reset_rows
                         if reset_rows and all(row["status"] == "updated" for row in reset_rows):
-                            st.success("Password mailbox berhasil diseragamkan.")
+                            for mailbox_row in mailbox_rows:
+                                if mailbox_row.get("status") == "created":
+                                    mailbox_row["password"] = os.getenv("QA_MAILBOX_MASTER_PASSWORD", "")
+                            st.session_state["latest_mailbox_batch"] = mailbox_rows
+                            st.success("Password mailbox berhasil diseragamkan. Download ulang CSV agar berisi password terbaru.")
                         else:
                             st.warning("Sebagian password belum berhasil diperbarui.")
                             st.dataframe(pd.DataFrame(reset_rows), hide_index=True)
