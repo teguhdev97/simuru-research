@@ -305,6 +305,11 @@ simuru-research/
 ~~~
 
 
+## Project handoff and product requirements
+
+- [Project.md](Project.md) — architecture, current implementation, local setup, security boundaries, and instructions for AI coding agents.
+- [PRD.md](PRD.md) — product goals, user journeys, functional requirements, acceptance criteria, milestones, and risks.
+
 ## Local five-mailbox QA
 
 The Registration QA dashboard can create exactly five real mailboxes per run on a
