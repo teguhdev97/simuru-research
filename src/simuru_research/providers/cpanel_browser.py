@@ -468,13 +468,15 @@ class CpanelBrowserMailboxManager:
                             f"Mailbox belum dapat diverifikasi: {type(exc).__name__}. "
                             "Jangan menganggap batch ini berhasil."
                         )
-            try:
-                self.credential_vault.save_many(created)
-            except RuntimeError as exc:
-                for record in created:
-                    if record.get('status') == 'created':
-                        record['credential_storage'] = 'failed'
-                        record['error'] = str(exc)
+            for record in created:
+                if record.get("status") != "created":
+                    continue
+                try:
+                    self.credential_vault.save(record["email"], record["password"])
+                    record["credential_storage"] = "saved"
+                except (RuntimeError, ValueError) as exc:
+                    record["credential_storage"] = "failed"
+                    record["error"] = f"Credential storage failed: {type(exc).__name__}"
             return created
 
     def import_mailbox_credential(self, email: str, password: str) -> None:
