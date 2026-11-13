@@ -5,7 +5,7 @@ synthetic QA, and a local registration/authentication test service.
 
 ## Current release
 
-- Version: 0.5.0
+- Version: 0.6.0
 - Python: 3.12
 - Runtime: local Windows machine
 - Dashboard: Streamlit
@@ -37,25 +37,118 @@ workers.
 Each job executes:
 
 1. Register a QA user in the local SQLite database.
-2. Generate a six-digit email verification code in the local test outbox.
-3. Verify the email address.
-4. Generate and verify a separate SMS verification code in the local test outbox.
-5. Hash and verify the password using PBKDF2-HMAC-SHA256.
-6. Log in and validate the resulting session token.
-7. Save the job result to the existing run history and allow CSV export.
+2. Generate a six-digit email verification code for the QA user.
+3. Send the email through local Mailpit SMTP and capture it in the Mailpit inbox.
+4. Read the received message through Mailpit's local REST API and extract the OTP.
+5. Verify the email address against the application's one-time verification record.
+6. Generate and verify a separate SMS code through the local SMS test outbox.
+7. Hash and verify the password using PBKDF2-HMAC-SHA256.
+8. Log in and validate the resulting session token.
+9. Save the job result to the existing run history and allow CSV export.
 
 ### Test-only data boundaries
 
 - Email addresses use the reserved example.test domain.
+- Email OTPs are sent only to the local Mailpit SMTP listener and captured by its local inbox/API.
+- Mailpit SMTP and HTTP ports are published only on 127.0.0.1; no real mailbox receives the test email.
 - Phone numbers use the fictional +1-202-555-0100 through +1-202-555-0199 range.
+- SMS OTPs remain in the local SQLite test outbox; no SMS provider is contacted.
 - Passwords are randomly generated in memory and stored only as salted password hashes.
-- OTPs are held temporarily in a local QA outbox and cleared when consumed.
+- OTPs are cleared from the local verification outbox when consumed.
 - Access tokens are stored as SHA-256 hashes in SQLite.
 - The QA API rejects non-loopback clients; run it on 127.0.0.1.
-- No real email, SMS, SIMURU rental, Temp-Mail, Temp-Number, or Instagram request is made by this local QA flow.
+- No SIMURU rental, Temp-Mail, Temp-Number, or Instagram request is made by this local QA flow.
 
 These test users can authenticate against the **local QA API only**. They are not
 Instagram accounts and cannot log in to Instagram.
+
+## Local email testing with Mailpit
+
+Version 0.6.0 uses [Mailpit](https://github.com/axllent/mailpit) to exercise the
+real SMTP delivery path without sending messages to public email providers. The
+default dashboard provider is **Mailpit SMTP**. The **Local outbox** option remains
+available as an offline fallback.
+
+### Start Mailpit on Windows
+
+Requirements: Docker Desktop or Podman with its machine running.
+
+From the repository root, start the pinned Mailpit container:
+
+~~~powershell
+podman run -d --name simuru-mailpit -p 127.0.0.1:1025:1025 -p 127.0.0.1:8025:8025 ghcr.io/axllent/mailpit:v1.33.1
+~~~
+
+If you use Docker instead of Podman, replace \`podman\` with \`docker\`.
+
+Alternatively, use the included Compose file with a compatible Compose provider:
+
+~~~powershell
+podman compose -f compose.mailpit.yml up -d
+~~~
+
+Check that the container is running:
+
+~~~powershell
+podman ps --filter name=simuru-mailpit
+podman logs simuru-mailpit
+~~~
+
+Open the local Mailpit inbox:
+
+~~~text
+http://127.0.0.1:8025
+~~~
+
+Mailpit SMTP listens on \`127.0.0.1:1025\`; its REST API listens on
+\`http://127.0.0.1:8025\`. Both published ports are bound to loopback only.
+
+### Configure Simuru Research
+
+Add these values to your local \`.env\` file. Do not commit \`.env\`:
+
+~~~env
+MAILPIT_SMTP_HOST=127.0.0.1
+MAILPIT_SMTP_PORT=1025
+MAILPIT_API_URL=http://127.0.0.1:8025
+MAILPIT_FROM_EMAIL=no-reply@simuru.local
+MAILPIT_TIMEOUT_SECONDS=5
+MAILPIT_POLL_TIMEOUT_SECONDS=15
+MAILPIT_POLL_INTERVAL_SECONDS=0.25
+~~~
+
+The defaults are also listed in \`.env.example\`. Restart Streamlit after changing
+environment variables.
+
+### Run the Mailpit email QA flow
+
+1. Start Mailpit.
+2. Start the dashboard with \`uv run streamlit run app.py\`.
+3. Open **Registration QA**.
+4. Keep **Mailpit SMTP** selected.
+5. Click **Check Mailpit connection**; both SMTP and HTTP API must be reachable.
+6. Run a small batch first (for example, 2 QA users) and inspect the captured emails at
+   \`http://127.0.0.1:8025\`.
+7. Increase to 40 QA users after the small test passes.
+
+Each QA email includes a \`SIMURU-QA-OTP\` marker used by the integration test to
+extract the code from the message body. The runner checks that the received code
+matches the code issued by the local application before completing email verification.
+
+To stop Mailpit:
+
+~~~powershell
+podman stop simuru-mailpit
+~~~
+
+To start it again:
+
+~~~powershell
+podman start simuru-mailpit
+~~~
+
+The mailbox is for local development and may be cleared when the container is removed.
+Do not use it as a public inbox or expose its SMTP/API ports to a LAN or the internet.
 
 ## Local Registration QA API
 
@@ -234,10 +327,7 @@ Open the local URL printed by Streamlit, usually:
 http://localhost:8501
 ~~~
 
-Select **Registration QA**, keep the default 40 jobs and 3 workers, then click
-**Run registration QA batch**. The batch creates local QA users, verifies both
-channels through the local test outbox, tests login/session validation, and stores
-the results in SQLite.
+Select **Registration QA**, keep **Mailpit SMTP** selected, and first test with 2 jobs and 1-2 workers. After the captured emails and OTP checks pass, increase to 40 jobs and 3 workers. The batch stores local QA users and results in SQLite.
 
 ## Run tests and lint
 
@@ -246,8 +336,7 @@ uv run pytest
 uv run ruff check .
 ~~~
 
-Tests use temporary SQLite databases and local test fixtures. They do not contact
-Instagram, SIMURU transaction endpoints, Temp-Mail, or Temp-Number.
+Tests use temporary SQLite databases, mocked Mailpit SMTP/API responses, and local fixtures. They do not contact Instagram, SIMURU transaction endpoints, Temp-Mail, or Temp-Number.
 
 ## Project layout
 
@@ -255,6 +344,7 @@ Instagram, SIMURU transaction endpoints, Temp-Mail, or Temp-Number.
 simuru-research/
 ├── app.py
 ├── .env.example
+├── compose.mailpit.yml
 ├── pyproject.toml
 ├── src/
 │   └── simuru_research/
@@ -266,6 +356,7 @@ simuru-research/
 │       │   └── runner.py
 │       ├── models.py
 │       ├── providers/
+│       │   ├── mailpit.py
 │       │   ├── sandbox.py
 │       │   └── simuru_client.py
 │       ├── security/
@@ -275,6 +366,7 @@ simuru-research/
 │           ├── exporter.py
 │           └── team_accounts.py
 └── tests/
+    ├── test_mailpit.py
     ├── test_registration_qa.py
     ├── test_runner.py
     ├── test_simuru_client.py
