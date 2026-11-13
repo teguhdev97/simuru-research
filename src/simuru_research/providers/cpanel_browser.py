@@ -570,7 +570,9 @@ class CpanelBrowserMailboxManager:
                     "Fallback accepts only generated QA mailboxes on the configured domain."
                 )
             if len(password) < 12:
-                raise MailboxError("Each generated website QA password must be at least 12 characters.")
+                raise MailboxError(
+                    "Each generated website QA password must be at least 12 characters."
+                )
             normalized_identities.append(
                 {
                     "email": email,
@@ -609,7 +611,8 @@ class CpanelBrowserMailboxManager:
                         count = locator.count()
                         if count != 1:
                             raise MailboxError(
-                                f"Selector '{field}' matched {count} elements; expected exactly one."
+                                f"Selector '{field}' matched {count} elements; "
+                                "expected exactly one."
                             )
                         locator.wait_for(state="visible", timeout=8_000)
                         locator.fill(values[field], timeout=8_000)
@@ -618,7 +621,8 @@ class CpanelBrowserMailboxManager:
                     submit_count = submit.count()
                     if submit_count != 1:
                         raise MailboxError(
-                            f"Submit selector matched {submit_count} elements; expected exactly one."
+                            f"Submit selector matched {submit_count} elements; "
+                            "expected exactly one."
                         )
                     submit.wait_for(state="visible", timeout=8_000)
                     submit.click(timeout=10_000)
@@ -638,7 +642,9 @@ class CpanelBrowserMailboxManager:
                     result.update(
                         {
                             "status": "submitted",
-                            "message": message or "Submit action completed; verify the app response.",
+                            "message": (
+                                message or "Submit action completed; verify the app response."
+                            ),
                             "page_url": str(page.url),
                         }
                     )
