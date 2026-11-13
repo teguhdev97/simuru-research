@@ -1,10 +1,35 @@
-# Python-generated files
+# Python
 __pycache__/
-*.py[oc]
+*.py[cod]
 build/
 dist/
 wheels/
-*.egg-info
+*.egg-info/
 
 # Virtual environments
-.venv
+.venv/
+.uv/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Local database and generated exports
+data/
+exports/
+*.sqlite
+*.sqlite3
+*.db
+
+# Test and tooling cache
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Editors and operating systems
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
