@@ -67,3 +67,32 @@ def test_uapi_result_accepts_legacy_cpanelresult_envelope():
 def test_uapi_succeeded_rejects_error_envelopes():
     assert not CpanelBrowserMailboxManager._uapi_succeeded({"result": {"status": 0}})
     assert not CpanelBrowserMailboxManager._uapi_succeeded({"error": "not authenticated"})
+
+
+
+def test_create_five_requires_local_password_before_browser_access():
+    manager = CpanelBrowserMailboxManager(
+        cpanel_url="https://cpanel.example.test:2083",
+        domain="teguhharits.com",
+        mailbox_password="",
+    )
+    try:
+        manager.create_five()
+    except Exception as exc:
+        assert "QA_MAILBOX_MASTER_PASSWORD" in str(exc)
+    else:
+        raise AssertionError("Mailbox creation must require an explicit local password")
+
+
+def test_reset_mailbox_passwords_rejects_other_domains():
+    manager = CpanelBrowserMailboxManager(
+        cpanel_url="https://cpanel.example.test:2083",
+        domain="teguhharits.com",
+        mailbox_password="temporary-test-password",
+    )
+    try:
+        manager.reset_mailbox_passwords(["qa@example.test"])
+    except Exception as exc:
+        assert "domain" in str(exc).lower()
+    else:
+        raise AssertionError("Password reset must be restricted to the owned QA domain")
