@@ -585,8 +585,10 @@ class CpanelBrowserMailboxManager:
             raise MailboxError("The five QA email addresses must be unique.")
 
         results: list[dict[str, str]] = []
-        with self._attached_browser() as (_, context, _):
-            page = context.new_page()
+        with self._attached_browser() as (browser, _, _):
+            # Keep website cookies isolated from the authenticated cPanel profile.
+            site_context = browser.new_context()
+            page = site_context.new_page()
             for index, identity in enumerate(normalized_identities, start=1):
                 result = {
                     "email": identity["email"],
@@ -674,10 +676,11 @@ class CpanelBrowserMailboxManager:
     def open_website_for_oauth_qa(self, url: str) -> str:
         """Open an authorized registration page in the local Chromium session."""
         target = self._validate_oauth_target_url(url)
-        with self._attached_browser() as (_, context, _):
-            page = context.new_page()
+        with self._attached_browser() as (browser, _, _):
+            site_context = browser.new_context()
+            page = site_context.new_page()
             page.goto(target, wait_until="domcontentloaded", timeout=30_000)
-        return "Halaman registrasi dibuka di Chromium. Pilih akun Google yang valid secara manual."
+        return "Halaman registrasi dibuka di context terisolasi. Lanjutkan secara manual."
 
     def start_google_oauth_flow(self, url: str, google_button_selector: str) -> str:
         """Navigate to an authorized registration page and click its Google button.
@@ -688,8 +691,9 @@ class CpanelBrowserMailboxManager:
         selector = google_button_selector.strip()
         if not selector or len(selector) > 500:
             raise MailboxError("Selector tombol Google tidak valid.")
-        with self._attached_browser() as (_, context, _):
-            page = context.new_page()
+        with self._attached_browser() as (browser, _, _):
+            site_context = browser.new_context()
+            page = site_context.new_page()
             page.goto(target, wait_until="domcontentloaded", timeout=30_000)
             button = page.locator(selector).first
             button.wait_for(state="visible", timeout=10_000)
