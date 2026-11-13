@@ -381,8 +381,10 @@ class CpanelBrowserMailboxManager:
                             send_welcome_email: '0'
                           });
                           const response = await fetch(
-                            match[0] + '/execute/Email/add_pop?' + params.toString(),
-                            {method: 'GET', credentials: 'same-origin', cache: 'no-store'}
+                            match[0] + '/execute/Email/add_pop',
+                            {method: 'POST', credentials: 'same-origin', cache: 'no-store',
+                             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                             body: params.toString()}
                           );
                           if (!response.ok) throw new Error('add_pop HTTP ' + response.status);
                           return await response.json();
@@ -463,8 +465,10 @@ class CpanelBrowserMailboxManager:
                       const match = location.pathname.match(/^\\/cpsess[^/]+/);
                       if (!match) throw new Error('Prefix sesi cPanel tidak ditemukan.');
                       const params = new URLSearchParams({email: localPart, domain, password});
-                      const response = await fetch(match[0] + '/execute/Email/passwd_pop?' + params.toString(),
-                        {method: 'GET', credentials: 'same-origin', cache: 'no-store'});
+                      const response = await fetch(match[0] + '/execute/Email/passwd_pop',
+                        {method: 'POST', credentials: 'same-origin', cache: 'no-store',
+                         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                         body: params.toString()});
                       if (!response.ok) throw new Error('passwd_pop HTTP ' + response.status);
                       return await response.json();
                     }""",
