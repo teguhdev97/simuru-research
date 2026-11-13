@@ -46,9 +46,9 @@ SIMURU Research is a local-first, configurable QA workbench. Users configure tar
 2. User clicks Connect cPanel.
 3. SIMURU opens or attaches to its persistent local Chromium profile.
 4. User signs into their own cPanel manually.
-5. User returns to Streamlit and clicks Check cPanel Session.
-6. SIMURU probes UAPI on all matching cPanel tabs.
-7. Dashboard reports either verified UAPI access or a precise, redacted reason.\n8. The status panel polls every three seconds so login is reflected without a manual refresh.
+5. User returns to Streamlit.
+6. SIMURU polls UAPI on all matching cPanel tabs every three seconds.
+7. Dashboard reports verified UAPI access or a precise, redacted reason without requiring manual refresh.
 
 **Acceptance criteria**
 - The check does not require creating a mailbox.
@@ -60,12 +60,12 @@ SIMURU Research is a local-first, configurable QA workbench. Users configure tar
 
 ### 5.2 Create mailbox batch
 
-1. User checks the cPanel session.
-2. User reviews domain, mailbox prefix, quota, and batch size.
-3. User confirms creation.
-4. SIMURU creates unique mailboxes using cPanel UAPI.
+1. User waits until the automatic cPanel UAPI session check succeeds.
+2. User reviews the domain, prefix, and mailbox quota.
+3. User clicks Create 5 New Emails.
+4. SIMURU creates exactly five unique mailboxes using cPanel UAPI.
 5. SIMURU lists mailboxes again and verifies each created address.
-6. Credentials are shown once and can be exported securely.
+6. Credentials and any partial failures are displayed for secure export/review.
 
 **Acceptance criteria**
 - Creation is disabled until UAPI authentication is confirmed.
@@ -154,7 +154,9 @@ SIMURU Research is a local-first, configurable QA workbench. Users configure tar
 | FR-010 | Website profiles persist locally | P0 |
 | FR-011 | OAuth QA configuration supports owned applications | P1 |
 | FR-012 | QA run history and CSV export | P1 |
-| FR-013 | Project and PRD documents stay current | P0 |\n| FR-014 | Session status automatically refreshes while the Mailbox Manager is open | P0 |\n| FR-015 | Create exactly five mailboxes and verify all five before revealing Google OAuth preparation | P0 |
+| FR-013 | Project and PRD documents stay current | P0 |
+| FR-014 | Session status automatically refreshes while the Mailbox Manager is open | P0 |
+| FR-015 | Create exactly five mailboxes and verify all five before revealing Google OAuth preparation | P0 |
 
 ## 7. Non-functional requirements
 
@@ -218,7 +220,8 @@ Never expose:
 ### M0 — Stabilize cPanel connection
 - [x] Add cPanel browser-session mode.
 - [x] Add UAPI session check.
-- [x] Auto-refresh session status every three seconds and show detailed UAPI diagnostics.\n- [ ] Verify session check on Rumahweb account.
+- [x] Auto-refresh session status every three seconds and show detailed UAPI diagnostics.
+- [ ] Verify session check on Rumahweb account.
 - [ ] Add mocked tests for UAPI response cases.
 - [ ] Confirm server-side logout behavior.
 
