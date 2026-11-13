@@ -504,18 +504,52 @@ class CpanelBrowserMailboxManager:
                 results.append({"email": email, "status": "updated" if self._uapi_succeeded(payload) else "failed"})
         return results
 
-    def open_website_for_oauth_qa(self, url: str) -> str:
-        """Open an authorized staging/local registration page for manual Google OAuth QA."""
+    @staticmethod
+    def _validate_oauth_target_url(url: str) -> str:
         from urllib.parse import urlparse
+
         parsed = urlparse(url.strip())
         if parsed.scheme not in {"http", "https"} or not parsed.hostname:
             raise MailboxError("Masukkan URL website HTTP(S) yang valid.")
+        if parsed.username or parsed.password:
+            raise MailboxError("URL target tidak boleh mengandung kredensial.")
         if parsed.scheme != "https" and parsed.hostname not in {"localhost", "127.0.0.1"}:
             raise MailboxError("Website remote harus menggunakan HTTPS.")
+        return url.strip()
+
+    def open_website_for_oauth_qa(self, url: str) -> str:
+        """Open an authorized registration page in the local Chromium session."""
+        target = self._validate_oauth_target_url(url)
         with self._attached_browser() as (_, context, _):
             page = context.new_page()
-            page.goto(url, wait_until="domcontentloaded", timeout=30_000)
-        return "Halaman pengujian dibuka di Chromium untuk proses OAuth manual."
+            page.goto(target, wait_until="domcontentloaded", timeout=30_000)
+        return "Halaman registrasi dibuka di Chromium. Pilih akun Google yang valid secara manual."
+
+    def start_google_oauth_flow(self, url: str, google_button_selector: str) -> str:
+        """Navigate to an authorized registration page and click its Google button.
+
+        Google authentication and consent are deliberately left to the user.
+        """
+        target = self._validate_oauth_target_url(url)
+        selector = google_button_selector.strip()
+        if not selector or len(selector) > 500:
+            raise MailboxError("Selector tombol Google tidak valid.")
+        with self._attached_browser() as (_, context, _):
+            page = context.new_page()
+            page.goto(target, wait_until="domcontentloaded", timeout=30_000)
+            button = page.locator(selector).first
+            button.wait_for(state="visible", timeout=10_000)
+            button.click(timeout=10_000)
+            try:
+                page.wait_for_load_state("domcontentloaded", timeout=5_000)
+            except Exception:
+                # Popup-based Google Identity Services may not navigate this page.
+                pass
+        return (
+            "Tombol Google berhasil diklik. Selesaikan pemilihan akun, login, "
+            "dan consent Google secara manual pada Chromium."
+        )
+
     def close(self) -> dict[str, str]:
         """Attempt server-side cPanel logout, clear cookies, then close Chromium."""
         logout_confirmed = False
