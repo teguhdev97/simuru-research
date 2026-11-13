@@ -88,9 +88,9 @@ def test_create_five_manager_keeps_configured_shared_password():
     manager = CpanelBrowserMailboxManager(
         cpanel_url="https://cpanel.example.test:2083",
         domain="teguhharits.com",
-        mailbox_password="Standard@321!",
+        mailbox_password="Test-Shared-QA-Password-2026!",
     )
-    assert manager.mailbox_password == "Standard@321!"
+    assert manager.mailbox_password == "Test-Shared-QA-Password-2026!"
 
 
 def test_reset_mailbox_passwords_rejects_other_domains():
