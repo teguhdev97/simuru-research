@@ -33,7 +33,7 @@ def test_registration_requires_both_verification_channels(tmp_path) -> None:
     token = service.login(email=email, password=PASSWORD)
     user = service.authenticate(token)
 
-    assert user["username"] == "qa-user"
+    assert user["username"] == "qa_user"
     assert user["email_verified"] == 1
     assert user["phone_verified"] == 1
 
