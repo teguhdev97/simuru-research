@@ -687,6 +687,8 @@ with mailbox_tab:
                         st.session_state["integrated_oauth_authorized"] = True
                         st.session_state["integrated_oauth_accounts_ready"] = accounts_ready
                         st.session_state.pop("email_fallback_results", None)
+                        for field, selector in inspection.get("selectors", {}).items():
+                            st.session_state[f"integrated_email_selector_{field}"] = selector
                         st.success(
                             f"Halaman diperiksa: {inspection.get('title') or inspection.get('url')}. "
                             f"{len(inspection.get('google_buttons', []))} kontrol Google terdeteksi."
@@ -696,12 +698,41 @@ with mailbox_tab:
             oauth_inspection = st.session_state.get("integrated_oauth_inspection")
             if oauth_inspection:
                 google_controls = oauth_inspection.get("google_buttons", [])
+                selector_labels = {
+                    "name": "Name field selector",
+                    "email": "Email field selector",
+                    "password": "Password field selector",
+                    "confirm_password": "Confirm password selector (optional)",
+                    "submit": "Submit button selector",
+                }
+                with st.expander(
+                    "Review email registration form selectors",
+                    expanded=not bool(google_controls),
+                ):
+                    for field, label in selector_labels.items():
+                        key = f"integrated_email_selector_{field}"
+                        st.session_state.setdefault(
+                            key,
+                            str(oauth_inspection.get("selectors", {}).get(field, "")),
+                        )
+                        st.text_input(
+                            label,
+                            key=key,
+                            placeholder="Auto-detected CSS selector",
+                        )
 
                 def run_email_registration_fallback():
                     if not st.session_state.get("integrated_oauth_authorized", False):
-                        st.error("Konfirmasi kepemilikan website diperlukan sebelum email fallback.")
+                        st.error(
+                            "Konfirmasi kepemilikan website diperlukan sebelum email fallback."
+                        )
                         return
-                    selectors = oauth_inspection.get("selectors", {})
+                    selectors = {
+                        field: st.session_state.get(
+                            f"integrated_email_selector_{field}", ""
+                        )
+                        for field in selector_labels
+                    }
                     required = ("email", "password", "submit")
                     missing = [
                         field for field in required if not str(selectors.get(field, "")).strip()
