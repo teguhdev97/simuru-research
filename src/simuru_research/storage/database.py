@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Iterator
 from contextlib import contextmanager
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Iterator
 
 from simuru_research.models import JobResult
 
@@ -65,20 +66,13 @@ class SQLiteRepository:
             )
 
     def create_run(self, *, run_id: str, total_jobs: int, max_workers: int) -> None:
-        from datetime import datetime, timezone
-
         with self._connection() as connection:
             connection.execute(
                 """
                 INSERT INTO runs (run_id, total_jobs, max_workers, status, started_at)
                 VALUES (?, ?, ?, 'running', ?)
                 """,
-                (
-                    run_id,
-                    total_jobs,
-                    max_workers,
-                    datetime.now(timezone.utc).isoformat(),
-                ),
+                (run_id, total_jobs, max_workers, datetime.now(UTC).isoformat()),
             )
 
     def save_result(self, result: JobResult) -> None:
@@ -104,8 +98,6 @@ class SQLiteRepository:
             )
 
     def finish_run(self, *, run_id: str, passed: int, failed: int) -> None:
-        from datetime import datetime, timezone
-
         with self._connection() as connection:
             connection.execute(
                 """
@@ -113,7 +105,7 @@ class SQLiteRepository:
                 SET status = 'completed', passed = ?, failed = ?, finished_at = ?
                 WHERE run_id = ?
                 """,
-                (passed, failed, datetime.now(timezone.utc).isoformat(), run_id),
+                (passed, failed, datetime.now(UTC).isoformat(), run_id),
             )
 
     def list_runs(self, *, limit: int = 50) -> list[dict[str, object]]:
