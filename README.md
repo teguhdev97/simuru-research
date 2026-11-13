@@ -282,6 +282,17 @@ simuru-research/
 ~~~
 
 
+## Local five-mailbox QA
+
+The Registration QA dashboard can create exactly five real mailboxes per run on a
+domain you control. It uses cPanel UAPI `Email::add_pop`, assigns distinct
+deterministic mailbox passwords derived from a local master secret, and stores the
+five addresses in SQLite run history. It does not submit website registration forms.
+
+See [docs/local-mailbox-qa.md](docs/local-mailbox-qa.md) for cPanel API token setup,
+Windows configuration, mailbox naming, IMAP settings, and sender-allowlisted OTP
+reader behavior. Keep cPanel tokens and mailbox master secrets in `.env` only.
+
 ## Browser Form QA (Selenium)
 
 An optional Selenium utility can inspect the registration form of a local application
