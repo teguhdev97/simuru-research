@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -23,7 +22,9 @@ class WebsiteProfileStore:
         try:
             payload = json.loads(self.path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
-            raise WebsiteProfileError("Website profile file is unreadable or invalid JSON.") from exc
+            raise WebsiteProfileError(
+                "Website profile file is unreadable or invalid JSON."
+            ) from exc
         if not isinstance(payload, list):
             raise WebsiteProfileError("Website profile file must contain a JSON list.")
         return [item for item in payload if isinstance(item, dict)]
@@ -86,7 +87,8 @@ def validate_profile(profile: dict[str, object]) -> dict[str, object]:
             raise WebsiteProfileError(f"Selector '{key}' is too long.")
         clean_selectors[key] = value
     if auth_method in {"email_password", "email_and_google"}:
-        if not clean_selectors["email"] or not clean_selectors["password"] or not clean_selectors["submit"]:
+        required = ("email", "password", "submit")
+        if any(not clean_selectors[key] for key in required):
             raise WebsiteProfileError("Email, password, and submit selectors are required.")
     return {
         "name": name,
