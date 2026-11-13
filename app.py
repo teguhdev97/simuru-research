@@ -84,8 +84,8 @@ with overview_tab:
 
     st.subheader("Integration scope")
     st.markdown(
-        "- Team Accounts: metadata registry for accounts the team owns or are "
-        "authorized to manage.\n"
+        "- Team Accounts: metadata registry for accounts owned by or authorized "
+        "for the team to manage.\n"
         "- Instagram API: available for eligible professional Creator/Business "
         "accounts after OAuth.\n"
         "- Personal Instagram accounts: registry-only; no official Instagram API connection.\n"
@@ -202,8 +202,10 @@ with team_tab:
     st.subheader("Registered team accounts")
     accounts = team_accounts.list_accounts()
     if accounts:
+        account_frame = pd.DataFrame(accounts)
+        account_frame["owner_approved"] = account_frame["owner_approved"].astype(bool)
         st.dataframe(
-            pd.DataFrame(accounts),
+            account_frame,
             use_container_width=True,
             hide_index=True,
             column_config={
