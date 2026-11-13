@@ -66,9 +66,9 @@ class MailpitEmailProvider:
             )
             response.raise_for_status()
             payload = response.json()
+        except MailpitError:
+            raise
         except (OSError, smtplib.SMTPException, httpx.HTTPError, ValueError) as exc:
-            if isinstance(exc, MailpitError):
-                raise
             raise MailpitError(
                 "Mailpit is not reachable. Start the local Mailpit service and "
                 "check ports 1025 (SMTP) and 8025 (HTTP API)."
@@ -111,7 +111,11 @@ class MailpitEmailProvider:
                 self.smtp_port,
                 timeout=self.timeout_seconds,
             ) as smtp:
-                smtp.send_message(message)
+                refused = smtp.send_message(message)
+                if refused:
+                    raise MailpitError("Mailpit refused the QA verification email.")
+        except MailpitError:
+            raise
         except (OSError, smtplib.SMTPException) as exc:
             raise MailpitError(
                 "Could not send the QA email to Mailpit SMTP. "
@@ -132,6 +136,8 @@ class MailpitEmailProvider:
                 )
                 response.raise_for_status()
                 payload = response.json()
+                if not isinstance(payload, dict):
+                    raise MailpitError("Mailpit returned an invalid message response.")
                 messages = payload.get("messages", [])
                 if not isinstance(messages, list):
                     raise MailpitError("Mailpit returned an invalid message list.")
@@ -149,6 +155,8 @@ class MailpitEmailProvider:
                     )
                     detail_response.raise_for_status()
                     detail = detail_response.json()
+                    if not isinstance(detail, dict):
+                        raise MailpitError("Mailpit returned an invalid message detail.")
                     body = str(detail.get("Text") or "")
                     match = OTP_PATTERN.search(body)
                     if match:
@@ -174,7 +182,7 @@ class MailpitEmailProvider:
             return False
         return any(
             isinstance(address, dict)
-            and str(address.get("Address", "")).strip().lower() == recipient.lower()
+            and str(address.get("Address", "")).strip().lower() == recipient.strip().lower()
             for address in recipients
         )
 
