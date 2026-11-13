@@ -1,82 +1,159 @@
 # Simuru Research
 
-Local Windows research workspace for exploring the official SIMURU API, managing
-metadata for existing team Instagram accounts, and running synthetic QA batches.
+Local Windows research workspace for SIMURU API exploration, team account metadata,
+synthetic QA, and a local registration/authentication test service.
 
 ## Current release
 
-- Version: 0.4.0
+- Version: 0.5.0
 - Python: 3.12
 - Runtime: local Windows machine
-- API base URL: https://simuru.com/api
+- Dashboard: Streamlit
+- Local QA API: FastAPI + Uvicorn, loopback only
+- Database: SQLite
+- SIMURU API: https://simuru.com/api
 - SIMURU API documentation: https://simuru.com/api-docs
-- Meta Instagram API documentation: https://www.postman.com/meta/instagram/documentation/
 
 ## Important platform boundaries
 
 This project does **not** create Instagram accounts, automate Instagram sign-up,
-rent temporary phone numbers or email inboxes, retrieve Instagram OTPs, or bypass
-Instagram verification and anti-abuse controls.
+rent temporary phone numbers or email inboxes for Instagram registration, retrieve
+Instagram OTPs, or bypass Instagram verification and anti-abuse controls.
 
-SIMURU's own Terms of Service prohibit mass-creating fake accounts and evading bans.
-Use SIMURU only for accounts and activities you own or are lawfully authorized to
-manage, and follow the provider's current terms.
+SIMURU's own terms prohibit mass-creating fake accounts and evading bans. Use
+SIMURU only for activities and applications you own or are authorized to test.
 
-Meta's official Instagram APIs are for eligible Instagram professional accounts
-(Business and Creator). Consumer/personal Instagram accounts are not available
-through the Instagram API. A Meta Graph API Test User is a Facebook app test user;
-it is not a newly created Instagram account.
+Meta's official Instagram APIs support eligible professional accounts (Creator and
+Business), not consumer/personal Instagram accounts. A Meta app test user is not a
+new Instagram account. This repository does not claim to create or connect Instagram
+accounts.
 
-## Team Account Registry (v0.4.0)
+## New in v0.5.0: Local Registration QA
 
-The local **Team Accounts** tab records existing Instagram accounts that the team
-owns or is explicitly authorized to manage.
+The **Registration QA** tab now runs up to 100 end-to-end test registrations for
+the team's own local application. The default batch is 40 jobs with 3 concurrent
+workers.
 
-Stored fields:
+Each job executes:
 
-- Instagram username
-- Owner/team label
-- Account type: personal, creator, or business
-- Owner authorization confirmation
-- Local API-readiness status
-- Optional notes and timestamps
+1. Register a QA user in the local SQLite database.
+2. Generate a six-digit email verification code in the local test outbox.
+3. Verify the email address.
+4. Generate and verify a separate SMS verification code in the local test outbox.
+5. Hash and verify the password using PBKDF2-HMAC-SHA256.
+6. Log in and validate the resulting session token.
+7. Save the job result to the existing run history and allow CSV export.
 
-The registry supports:
+### Test-only data boundaries
 
-- Adding one existing account at a time.
-- Importing authorized account metadata from CSV.
-- Exporting the registry to CSV.
-- Counting accounts by type.
-- Duplicate username detection (case-insensitive).
+- Email addresses use the reserved example.test domain.
+- Phone numbers use the fictional +1-202-555-0100 through +1-202-555-0199 range.
+- Passwords are randomly generated in memory and stored only as salted password hashes.
+- OTPs are held temporarily in a local QA outbox and cleared when consumed.
+- Access tokens are stored as SHA-256 hashes in SQLite.
+- The QA API rejects non-loopback clients; run it on 127.0.0.1.
+- No real email, SMS, SIMURU rental, Temp-Mail, Temp-Number, or Instagram request is made by this local QA flow.
 
-### Account type behavior
+These test users can authenticate against the **local QA API only**. They are not
+Instagram accounts and cannot log in to Instagram.
 
-| Account type | Registry behavior | Instagram API |
-| --- | --- | --- |
-| Personal | Metadata registry only | Not supported by the official Instagram API |
-| Creator | Pending Meta OAuth setup | Eligible, subject to app setup and permissions |
-| Business | Pending Meta OAuth setup | Eligible, subject to app setup and permissions |
+## Local Registration QA API
 
-Changing a Personal account to Professional can affect privacy and account features.
-Only the account owner should make that change after reviewing Meta's current guidance.
-This application does not change account types.
+A small FastAPI service is included to make the registration flow inspectable and
+testable independently of the Streamlit dashboard.
 
-### CSV format
+### Start the API
 
-Required columns:
+Open a terminal in the repository:
 
-~~~csv
-username,owner_label,account_type,owner_approved,notes
-sample_team_account,Marketing Team,personal,true,Replace with an authorized account
+~~~powershell
+uv run uvicorn simuru_research.api:app --host 127.0.0.1 --port 8000
 ~~~
 
-Only rows with owner_approved=true are imported. Do not include passwords, OTPs,
-phone numbers, email credentials, session cookies, or access tokens in this CSV.
+Open the interactive API documentation:
+
+~~~text
+http://127.0.0.1:8000/docs
+~~~
+
+The API supports:
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | /health | Local service health |
+| POST | /auth/register | Register a local QA user |
+| GET | /qa/outbox/email?destination=... | Read local email test code |
+| GET | /qa/outbox/sms?destination=... | Read local SMS test code |
+| POST | /auth/verify | Verify email or SMS code |
+| POST | /auth/login | Authenticate a verified QA user |
+| GET | /auth/me | Validate the bearer session |
+
+The test outbox is available only to loopback clients. Do not bind this API to
+0.0.0.0, expose it through a tunnel, or deploy it publicly.
+
+### Example: register and verify one local QA user (PowerShell)
+
+Start the API first, then open another PowerShell terminal:
+
+~~~powershell
+$email = "manual_qa@example.test"
+$phone = "+12025550150"
+$password = "Local-QA-Password-123!"
+
+$registerBody = @{
+    username = "manual_qa"
+    email = $email
+    phone = $phone
+    password = $password
+} | ConvertTo-Json
+
+Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:8000/auth/register" -ContentType "application/json" -Body $registerBody
+
+$emailQuery = [uri]::EscapeDataString($email)
+$phoneQuery = [uri]::EscapeDataString($phone)
+
+$emailCode = Invoke-RestMethod -Uri "http://127.0.0.1:8000/qa/outbox/email?destination=$emailQuery"
+$smsCode = Invoke-RestMethod -Uri "http://127.0.0.1:8000/qa/outbox/sms?destination=$phoneQuery"
+
+Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:8000/auth/verify" -ContentType "application/json" -Body (@{ channel = "email"; destination = $email; code = $emailCode.code } | ConvertTo-Json)
+Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:8000/auth/verify" -ContentType "application/json" -Body (@{ channel = "sms"; destination = $phone; code = $smsCode.code } | ConvertTo-Json)
+
+$login = Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:8000/auth/login" -ContentType "application/json" -Body (@{ email = $email; password = $password } | ConvertTo-Json)
+$headers = @{ Authorization = "Bearer " + $login.access_token }
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/auth/me" -Headers $headers
+~~~
+
+Use a unique username and email for each manual registration. The automated batch
+runner creates unique email addresses and usernames itself.
+
+## Streamlit dashboard
+
+The dashboard includes:
+
+1. **Overview** — team account counts and latest QA run.
+2. **Team Accounts** — add, import, inspect, and export metadata for existing team-owned accounts.
+3. **Sandbox Batch** — synthetic identity/concurrency checks.
+4. **Registration QA** — run 40 local registration, email verification, SMS verification, and login workflows.
+5. **Run History & Export** — inspect previous runs and download CSV.
+6. **SIMURU API** — browse account profile, balance, services, countries, prices, and country insights.
+
+## Team Account Registry
+
+The registry records existing Instagram accounts the team owns or is explicitly
+authorized to manage. It stores usernames and owner/team metadata only.
+
+| Account type | Registry behavior | Official Instagram API |
+| --- | --- | --- |
+| Personal | Metadata registry only | Not supported |
+| Creator | Pending Meta OAuth setup | Eligible, subject to permissions and app access |
+| Business | Pending Meta OAuth setup | Eligible, subject to permissions and app access |
+
+Changing a Personal account to Professional can affect privacy and account features.
+Only the account owner should make that change after reviewing Meta's guidance.
 
 ## SIMURU API integration
 
-The API client follows the public SIMURU documentation and authenticates with the
-**X-API-KEY** request header. The API key is loaded from the local **.env** file.
+The API client uses the X-API-KEY header and reads the key from the local .env.
 
 Read-only endpoints currently implemented:
 
@@ -92,53 +169,18 @@ Read-only endpoints currently implemented:
 | Price offers | GET /services/{service}/countries/{country}/offers |
 | Country performance insights | GET /insights/countries |
 
-The dashboard is split into Account, Services & Pricelist, and Country Insights.
-The complete price list can be downloaded as CSV.
+State-changing operations are deliberately not exposed. Some provider APIs use GET for
+transactions, so HTTP method alone is not treated as proof that an endpoint is read-only.
+This project does not expose order creation/cancellation, number rental, email rental,
+OTP retrieval, deposits, or social-media booster actions.
 
-### Deliberate transaction boundary
+## Setup on Windows
 
-SIMURU documents some state-changing operations as GET requests. HTTP method alone
-does not make those operations read-only. This project uses an explicit allowlist and
-does not expose order creation, order cancellation, order completion, number rental,
-email rental, OTP retrieval, deposits, or social-media booster actions.
-
-The API key is never embedded in source code or sent in a URL. Keep **.env** private;
-it is excluded by **.gitignore**.
-
-## Synthetic QA sandbox
-
-The separate sandbox batch runner tests concurrency, SQLite persistence, and CSV
-export using fictional identities only:
-
-- Email domain: **example.test**
-- Fictional phone range: North American 555-0100–0199
-- Maximum batch size: 100 synthetic records
-- Default worker count: 3; maximum: 10
-
-Sandbox identities are not sent to SIMURU or to any third-party registration service.
-The sandbox does not create external accounts or retrieve verification codes.
-
-## Future Meta OAuth integration
-
-A later release can add OAuth for existing Creator/Business accounts after:
-
-1. The team selects one Meta app and verifies that the Instagram API product is enabled.
-2. An account owner explicitly authorizes the app through Meta's official login flow.
-3. The app is configured with the required redirect URI, permissions, roles, and review/access level.
-4. The app stores tokens in an OS-backed secret store, not in source control or CSV files.
-
-This release does not implement Meta OAuth or claim that any Instagram account is connected.
-Do not paste Meta App Secret or access tokens into chat or commit them to GitHub.
-
-## Requirements
+Requirements:
 
 - Windows 10/11
 - Python 3.12
-- [uv](https://docs.astral.sh/uv/)
-
-The repository pins Python 3.12 in **.python-version**.
-
-## Setup on Windows PowerShell
+- uv
 
 Clone the repository:
 
@@ -147,19 +189,27 @@ git clone https://github.com/teguhdev97/simuru-research.git
 cd simuru-research
 ~~~
 
+If you are pulling the v0.5.0 work from the feature branch:
+
+~~~powershell
+git fetch origin
+git switch feat/internal-registration-qa-v0.5.0
+git pull --ff-only origin feat/internal-registration-qa-v0.5.0
+~~~
+
 Install dependencies:
 
 ~~~powershell
 uv sync --extra dev
 ~~~
 
-Create your local environment file:
+Create your local environment file if it does not exist:
 
 ~~~powershell
 Copy-Item .env.example .env
 ~~~
 
-Open **.env** and add your SIMURU API key locally:
+Set your SIMURU API key locally in .env:
 
 ~~~env
 SIMURU_BASE_URL=https://simuru.com/api
@@ -169,9 +219,10 @@ DEFAULT_TOTAL_JOBS=40
 DEFAULT_MAX_WORKERS=3
 ~~~
 
-Do not commit the real API key. The **.env** file is ignored by Git.
+Never commit the real API key, Meta App Secret, or access tokens. .env is ignored
+by Git.
 
-## Run the dashboard locally
+## Run the Streamlit dashboard
 
 ~~~powershell
 uv run streamlit run app.py
@@ -183,36 +234,20 @@ Open the local URL printed by Streamlit, usually:
 http://localhost:8501
 ~~~
 
-### Dashboard tabs
+Select **Registration QA**, keep the default 40 jobs and 3 workers, then click
+**Run registration QA batch**. The batch creates local QA users, verifies both
+channels through the local test outbox, tests login/session validation, and stores
+the results in SQLite.
 
-1. **Overview** — team account counts and latest synthetic QA run.
-2. **Team Accounts** — add, import, inspect, and export authorized account metadata.
-3. **Sandbox Batch** — run synthetic QA jobs with bounded concurrency.
-4. **Run History & Export** — inspect previous runs and download CSV.
-5. **SIMURU API** — browse account profile, balance, services, countries, prices, and insights.
-
-SIMURU requests are only sent after the corresponding button is clicked. No API key
-is required to use the local registry or sandbox.
-
-## CLI usage
-
-Run a 40-job local sandbox batch with three workers:
-
-~~~powershell
-uv run simuru-research --jobs 40 --workers 3
-~~~
-
-The CLI writes results to the SQLite database configured by DATABASE_PATH.
-
-## Tests and lint
+## Run tests and lint
 
 ~~~powershell
 uv run pytest
 uv run ruff check .
 ~~~
 
-Tests use mocked HTTP responses or local SQLite files. They do not spend SIMURU
-balance or contact third-party registration services.
+Tests use temporary SQLite databases and local test fixtures. They do not contact
+Instagram, SIMURU transaction endpoints, Temp-Mail, or Temp-Number.
 
 ## Project layout
 
@@ -223,18 +258,24 @@ simuru-research/
 ├── pyproject.toml
 ├── src/
 │   └── simuru_research/
+│       ├── api.py
 │       ├── cli.py
 │       ├── config/settings.py
-│       ├── engine/runner.py
+│       ├── engine/
+│       │   ├── registration_qa.py
+│       │   └── runner.py
 │       ├── models.py
 │       ├── providers/
 │       │   ├── sandbox.py
 │       │   └── simuru_client.py
+│       ├── security/
+│       │   └── auth_qa.py
 │       └── storage/
 │           ├── database.py
 │           ├── exporter.py
 │           └── team_accounts.py
 └── tests/
+    ├── test_registration_qa.py
     ├── test_runner.py
     ├── test_simuru_client.py
     └── test_team_accounts.py
