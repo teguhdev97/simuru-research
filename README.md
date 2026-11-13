@@ -280,3 +280,56 @@ simuru-research/
     ├── test_simuru_client.py
     └── test_team_accounts.py
 ~~~
+
+
+## Browser Form QA (Selenium)
+
+An optional Selenium utility can inspect the registration form of a local application
+or an explicitly authorized staging site. It reports whether common username, email,
+password, and submit controls are present.
+
+### Safety and scope
+
+- The default allowed hosts are `localhost` and `127.0.0.1`.
+- Additional staging hosts must be explicitly added to `BROWSER_QA_ALLOWED_HOSTS`.
+- The inspector does not submit forms or create accounts.
+- CAPTCHA and OTP challenges remain under the control of the application owner and
+  must be completed manually in an authorized test environment.
+- No stealth/anti-detection driver, proxy rotation, CAPTCHA-solving service, or OTP
+  interception is included.
+- Third-party identity-provider registration pages are not supported targets.
+
+### Install and run on Windows
+
+Install the optional browser dependency:
+
+~~~powershell
+uv sync --extra dev --extra browser-qa
+~~~
+
+Install Google Chrome separately if it is not already installed. Selenium Manager
+will manage a compatible ChromeDriver when the browser check is first run.
+
+Start your local application, then inspect its registration form:
+
+~~~powershell
+$env:BROWSER_QA_ALLOWED_HOSTS = "localhost,127.0.0.1"
+uv run simuru-browser-qa --url http://127.0.0.1:8000/register
+~~~
+
+To run Chrome headlessly:
+
+~~~powershell
+uv run simuru-browser-qa --url http://127.0.0.1:8000/register --headless
+~~~
+
+For an owned staging environment, add only the hostname you control:
+
+~~~powershell
+$env:BROWSER_QA_ALLOWED_HOSTS = "localhost,127.0.0.1,staging.example.org"
+uv run simuru-browser-qa --url https://staging.example.org/register --headless
+~~~
+
+See [docs/browser-form-qa.md](docs/browser-form-qa.md) for details. The existing
+**Registration QA** runner remains the tool for end-to-end synthetic registration,
+email/SMS verification, and login tests against the local QA API.
