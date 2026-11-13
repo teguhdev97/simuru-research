@@ -59,7 +59,8 @@ with st.sidebar:
     st.caption("Registration QA uses local-only test identities and a local OTP outbox.")
     st.caption("No Instagram signup, external OTP retrieval, or provider rental is performed.")
 
-overview_tab, team_tab, sandbox_tab, mailbox_tab, website_tab, registration_qa_tab, history_tab, api_tab = st.tabs(
+overview_tab, team_tab, sandbox_tab, mailbox_tab, website_tab, registration_qa_tab, history_tab, api_tab = (
+    st.tabs(
     [
         "Overview",
         "Team Accounts",
@@ -69,7 +70,7 @@ overview_tab, team_tab, sandbox_tab, mailbox_tab, website_tab, registration_qa_t
         "Registration QA",
         "Run History & Export",
         "SIMURU API",
-    ]
+    ])
 )
 
 with overview_tab:
@@ -312,11 +313,14 @@ with mailbox_tab:
         placeholder="Kosongkan untuk password acak unik",
         help=(
             "Isi password QA pilihan untuk menyamakan password sementara. "
-            "Field ini hanya berada di sesi dashboard; .env lokal lebih cocok untuk konfigurasi tetap."
+            "Field ini hanya berada di sesi dashboard; .env lokal lebih cocok "
+            "untuk konfigurasi tetap."
         ),
         key="qa_mailbox_password_input",
     ).strip()
-    if not mailbox_password_input and not st.session_state.get("mailbox_password_notice_dismissed", False):
+    if not mailbox_password_input and not st.session_state.get(
+        "mailbox_password_notice_dismissed", False
+    ):
         with st.container(border=True):
             notice_col, dismiss_col = st.columns([8, 1])
             with notice_col:
@@ -379,7 +383,8 @@ with mailbox_tab:
                     "kind": "success",
                     "message": (
                         f"Ditemukan {len(st.session_state['existing_qa_mailboxes'])} mailbox "
-                        f"dengan prefix {cpanel_manager.prefix} pada domain {cpanel_manager.domain}."
+                        f"dengan prefix {cpanel_manager.prefix} "
+                        f"pada domain {cpanel_manager.domain}."
                     ),
                 }
             except MailboxError as exc:
@@ -488,7 +493,13 @@ with mailbox_tab:
         if mailbox_rows:
             mailbox_frame = pd.DataFrame(mailbox_rows)
             st.dataframe(
-                mailbox_frame[[column for column in ["email", "status", "credential_storage", "error"] if column in mailbox_frame.columns]],
+                mailbox_frame[
+                        [
+                            column
+                            for column in ["email", "status", "credential_storage", "error"]
+                            if column in mailbox_frame.columns
+                        ]
+                    ],
                 use_container_width=True,
                 hide_index=True,
             )
@@ -503,7 +514,11 @@ with mailbox_tab:
                     try:
                         with st.spinner("Memperbarui password mailbox di cPanel..."):
                             reset_rows = cpanel_manager.reset_mailbox_passwords(
-                                [str(row["email"]) for row in mailbox_rows if row.get("status") == "created"]
+                                [
+                                    str(row["email"])
+                                    for row in mailbox_rows
+                                    if row.get("status") == "created"
+                                ]
                             )
                         st.session_state["mailbox_password_reset"] = reset_rows
                         if reset_rows and all(row["status"] == "updated" for row in reset_rows):
@@ -513,12 +528,18 @@ with mailbox_tab:
                             st.session_state["latest_mailbox_batch"] = mailbox_rows
                             st.session_state["mailbox_workflow_alert"] = {
                                 "kind": "success",
-                                "message": "Password mailbox berhasil diseragamkan. Download ulang CSV agar berisi password terbaru.",
+                                "message": (
+                                    "Password mailbox berhasil diseragamkan. "
+                                    "Download ulang CSV agar berisi password terbaru."
+                                ),
                             }
                         else:
                             st.session_state["mailbox_workflow_alert"] = {
                                 "kind": "error",
-                                "message": "Sebagian password belum berhasil diperbarui: " + str(reset_rows),
+                                "message": (
+                                    "Sebagian password belum berhasil diperbarui: "
+                                    + str(reset_rows)
+                                ),
                             }
                     except MailboxError as exc:
                         st.session_state["mailbox_workflow_alert"] = {
@@ -526,7 +547,10 @@ with mailbox_tab:
                             "message": str(exc),
                         }
             else:
-                st.info("Password acak unik sedang digunakan. Isi field Shared QA mailbox password untuk menyamakan password kelima mailbox.")
+                st.info(
+                    "Password acak unik sedang digunakan. Isi field Shared QA mailbox "
+                    "password untuk menyamakan password kelima mailbox."
+                )
 
         with st.expander("Import existing mailbox password from CSV", expanded=False):
             st.caption(
@@ -561,7 +585,8 @@ with mailbox_tab:
             st.divider()
             st.subheader("Mailbox connectivity & OTP")
             st.caption(
-                "IMAP dipakai untuk membaca OTP masuk. SMTP hanya dibutuhkan bila SIMURU perlu mengirim email."
+                "IMAP dipakai untuk membaca OTP masuk. SMTP hanya dibutuhkan bila "
+                "SIMURU perlu mengirim email."
             )
             imap_ready = all(
                 MailboxCredentialVault().get(str(row["email"]))
@@ -664,22 +689,38 @@ with mailbox_tab:
             st.success("Lima mailbox berhasil dibuat dan diverifikasi.")
             test_emails = [str(row["email"]) for row in mailbox_rows]
             st.caption(
-                "Jalur Google membutuhkan Google Accounts yang sudah ditambahkan ke OAuth Test Users. "
+                "Jalur Google membutuhkan Google Accounts yang sudah ditambahkan "
+                "ke OAuth Test Users. "
                 "Jalur fallback email tidak membutuhkan Google Account."
             )
             st.code("\n".join(test_emails), language="text")
             with st.form("integrated_google_oauth_qa_form"):
-                target_url = st.text_input("Website registration URL", placeholder="https://your-staging-site.example/register")
+                target_url = st.text_input(
+                    "Website registration URL",
+                    placeholder="https://your-staging-site.example/register",
+                )
                 selected_test_email = st.selectbox("Google test account (OAuth only)", test_emails)
-                owns_target = st.checkbox("Saya memiliki website ini atau memiliki izin eksplisit untuk menjalankan QA.")
-                accounts_ready = st.checkbox("Kelima alamat sudah menjadi Google Account dan ditambahkan ke OAuth Test Users (OAuth only).")
-                inspect_and_save = st.form_submit_button("Inspect website & prepare registration QA", type="primary", use_container_width=True)
+                owns_target = st.checkbox(
+                    "Saya memiliki website ini atau memiliki izin eksplisit "
+                    "untuk menjalankan QA."
+                )
+                accounts_ready = st.checkbox(
+                    "Kelima alamat sudah menjadi Google Account dan ditambahkan "
+                    "ke OAuth Test Users (OAuth only)."
+                )
+                inspect_and_save = st.form_submit_button(
+                    "Inspect website & prepare registration QA",
+                    type="primary",
+                    use_container_width=True,
+                )
             if inspect_and_save:
                 if not owns_target:
                     st.error("Konfirmasi kepemilikan/izin website sebelum menjalankan QA.")
                 else:
                     try:
-                        with st.spinner("Memeriksa halaman registrasi dan tombol Google OAuth/email..."):
+                        with st.spinner(
+                            "Memeriksa halaman registrasi dan tombol Google OAuth/email..."
+                        ):
                             inspection = inspect_form(target_url)
                         st.session_state["integrated_oauth_target"] = target_url
                         st.session_state["integrated_oauth_inspection"] = inspection
@@ -690,8 +731,10 @@ with mailbox_tab:
                         for field, selector in inspection.get("selectors", {}).items():
                             st.session_state[f"integrated_email_selector_{field}"] = selector
                         st.success(
-                            f"Halaman diperiksa: {inspection.get('title') or inspection.get('url')}. "
-                            f"{len(inspection.get('google_buttons', []))} kontrol Google terdeteksi."
+                            f"Halaman diperiksa: "
+                            f"{inspection.get('title') or inspection.get('url')}. "
+                            f"{len(inspection.get('google_buttons', []))} "
+                            "kontrol Google terdeteksi."
                         )
                     except FormInspectionError as exc:
                         st.error(str(exc))
@@ -773,7 +816,11 @@ with mailbox_tab:
                         st.error(f"Email fallback gagal: {exc}")
 
                 if google_controls:
-                    st.dataframe(pd.DataFrame(google_controls), use_container_width=True, hide_index=True)
+                    st.dataframe(
+                        pd.DataFrame(google_controls),
+                        use_container_width=True,
+                        hide_index=True,
+                    )
                     control_labels = [
                         f"{item.get('text') or 'Google sign-in'} · {item.get('selector')}"
                         for item in google_controls
@@ -786,7 +833,8 @@ with mailbox_tab:
                     chosen_control = google_controls[control_labels.index(chosen_control_label)]
                     st.caption(
                         "SIMURU akan membuka halaman dan mengeklik tombol Google. "
-                        "Kamu tetap menyelesaikan pemilihan Google Account, login, consent, CAPTCHA, dan MFA."
+                        "Kamu tetap menyelesaikan pemilihan Google Account, login, consent, "
+                        "CAPTCHA, dan MFA."
                     )
                     if st.button(
                         (
@@ -860,7 +908,10 @@ with mailbox_tab:
                         mime="text/csv",
                         key="download_email_fallback_results",
                     )
-                    if st.button("Clear email fallback results (allow rerun)", key="clear_email_fallback_results"):
+                    if st.button(
+                        "Clear email fallback results (allow rerun)",
+                        key="clear_email_fallback_results",
+                    ):
                         st.session_state.pop("email_fallback_results", None)
                         st.rerun()
                 st.caption(
@@ -943,7 +994,11 @@ with website_tab:
             google_buttons = inspection_result.get("google_buttons", [])
             if google_buttons:
                 st.success("Google sign-in control detected:")
-                st.dataframe(pd.DataFrame(google_buttons), use_container_width=True, hide_index=True)
+                st.dataframe(
+                    pd.DataFrame(google_buttons),
+                    use_container_width=True,
+                    hide_index=True,
+                )
             else:
                 st.info("No obvious Google sign-in button was detected on this page.")
 
@@ -974,7 +1029,10 @@ with website_tab:
                 }
                 current_auth = str(selected_profile.get("auth_method", "email_password"))
                 auth_labels = list(auth_options)
-                auth_index = list(auth_options.values()).index(current_auth) if current_auth in auth_options.values() else 0
+                auth_values = list(auth_options.values())
+                auth_index = (
+                    auth_values.index(current_auth) if current_auth in auth_values else 0
+                )
                 auth_label = st.selectbox(
                     "Authentication method",
                     auth_labels,
@@ -983,12 +1041,32 @@ with website_tab:
             st.markdown("**Form selectors (CSS)**")
             s1, s2 = st.columns(2)
             with s1:
-                selector_name = st.text_input("Name field selector", key="website_selector_name", placeholder="Auto-detected")
-                selector_email = st.text_input("Email field selector", key="website_selector_email", placeholder="Auto-detected")
-                selector_password = st.text_input("Password field selector", key="website_selector_password", placeholder="Auto-detected")
+                selector_name = st.text_input(
+                    "Name field selector",
+                    key="website_selector_name",
+                    placeholder="Auto-detected",
+                )
+                selector_email = st.text_input(
+                    "Email field selector",
+                    key="website_selector_email",
+                    placeholder="Auto-detected",
+                )
+                selector_password = st.text_input(
+                    "Password field selector",
+                    key="website_selector_password",
+                    placeholder="Auto-detected",
+                )
             with s2:
-                selector_confirm = st.text_input("Confirm password selector", key="website_selector_confirm_password", placeholder="Auto-detected")
-                selector_submit = st.text_input("Submit button selector", key="website_selector_submit", placeholder="Auto-detected")
+                selector_confirm = st.text_input(
+                    "Confirm password selector",
+                    key="website_selector_confirm_password",
+                    placeholder="Auto-detected",
+                )
+                selector_submit = st.text_input(
+                    "Submit button selector",
+                    key="website_selector_submit",
+                    placeholder="Auto-detected",
+                )
                 google_oauth_enabled = st.checkbox(
                     "Enable Google OAuth flow testing",
                     value=bool(selected_profile.get("google_oauth_enabled", False)),
@@ -997,7 +1075,9 @@ with website_tab:
                 "I own this website or have explicit permission to run automated QA against it.",
                 value=bool(selected_profile.get("authorized_for_testing", False)),
             )
-            save_profile = st.form_submit_button("Save website profile", type="primary", use_container_width=True)
+            save_profile = st.form_submit_button(
+                "Save website profile", type="primary", use_container_width=True
+            )
 
         if save_profile:
             try:
