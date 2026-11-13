@@ -72,7 +72,9 @@ def inspect_form(url: str, *, timeout_ms: int = 20000) -> dict[str, object]:
         return labels[0] || aria || placeholder || el.getAttribute('name') || el.id || '';
       };
       const inputs = [...document.querySelectorAll('input, textarea, select')]
-        .filter(el => visible(el) && !['hidden','submit','button','reset','checkbox','radio','file'].includes((el.type || '').toLowerCase()))
+        .filter(el => visible(el) && ![
+          'hidden', 'submit', 'button', 'reset', 'checkbox', 'radio', 'file'
+        ].includes((el.type || '').toLowerCase()))
         .map(el => ({
           tag: el.tagName.toLowerCase(),
           type: (el.type || el.tagName.toLowerCase()).toLowerCase(),
