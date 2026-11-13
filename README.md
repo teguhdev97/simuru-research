@@ -133,7 +133,7 @@ The dashboard includes:
 1. **Overview** — team account counts and latest QA run.
 2. **Team Accounts** — add, import, inspect, and export metadata for existing team-owned accounts.
 3. **Sandbox Batch** — synthetic identity/concurrency checks.
-4. **Mailbox Manager** — opens a local persistent cPanel browser session and creates eight new mailboxes on the configured owned domain.
+4. **Mailbox Manager** — opens a local persistent cPanel browser session and creates exactly five new mailboxes on the configured owned domain, then exposes Google OAuth test-user preparation only after all five are verified.
 5. **Website Automation** — visually configure and save website QA profiles locally; no JSON editing required.
 6. **Registration QA** — run 40 local registration, email verification, SMS verification, and login workflows.
 7. **Run History & Export** — inspect previous runs and download CSV.
@@ -321,12 +321,12 @@ See [docs/local-mailbox-qa.md](docs/local-mailbox-qa.md) for cPanel API token se
 Windows configuration, mailbox naming, IMAP settings, and sender-allowlisted OTP
 reader behavior. Keep cPanel tokens and mailbox master secrets in `.env` only.
 
-## Mailbox Manager (eight local cPanel mailboxes)
+## Mailbox Manager (five local cPanel mailboxes)
 
 The **Mailbox Manager** tab opens a persistent, visible Chromium profile on the local
 Windows laptop. Sign in manually to your own Rumahweb cPanel, then click **Create 8 New
 Emails**. SIMURU uses same-origin cPanel UAPI calls to list existing mailboxes, create
-eight unique addresses, and verify the result.
+five unique addresses, and verify the result.
 
 - No cPanel API token is required for this browser-session mode.
 - The cPanel password, cookies, and `cpsess` token are never copied into application
@@ -345,7 +345,7 @@ uv run streamlit run app.py
 ~~~
 
 Open **Mailbox Manager**, click **Connect cPanel**, complete login in Chromium, return
-to Streamlit, then click **Create 8 New Emails**. See
+to Streamlit, then click **Create 5 New Emails**. See
 [docs/mailbox-manager.md](docs/mailbox-manager.md).
 
 ## Browser Form QA (Selenium)
@@ -399,3 +399,20 @@ uv run simuru-browser-qa --url https://staging.example.org/register --headless
 See [docs/browser-form-qa.md](docs/browser-form-qa.md) for details. The existing
 **Registration QA** runner remains the tool for end-to-end synthetic registration,
 email/SMS verification, and login tests against the local QA API.
+
+
+## Google OAuth QA test-user preparation
+
+After a successful five-mailbox batch, the Mailbox Manager reveals a Google OAuth
+preparation panel. It provides a copy/download list of the five addresses and stores
+only the Google Cloud project name, OAuth Client ID, redirect URI, and email list in
+`data/google_oauth_qa.json`. It never stores a Client Secret.
+
+Each address must first be a real Google Account. Google supports signing up with an
+existing non-Gmail address by choosing **Use your existing email** and verifying the
+code delivered to that mailbox. Then, for an External app in Testing mode, add those
+Google Accounts manually under Google Auth Platform → Audience → Test users. SIMURU
+does not automate Google Account creation or bypass Google's account-security flow.
+
+Official guides: [Create a Google Account using an existing email](https://support.google.com/accounts/answer/27441)
+and [Configure OAuth consent / test users](https://developers.google.com/workspace/guides/configure-oauth-consent).
