@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import csv
+from collections.abc import Iterable
 from io import StringIO
-from typing import Iterable
 
 
 def results_to_csv(rows: Iterable[dict[str, object]]) -> str:
