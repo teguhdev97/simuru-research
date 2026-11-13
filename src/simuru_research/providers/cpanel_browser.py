@@ -193,10 +193,10 @@ class CpanelBrowserMailboxManager:
             """async (domain) => {
               const result = {
                 ok: false,
-                pageUrl: location.href,
+                pageUrl: location.origin + location.pathname.replace(/^\\/cpsess[^/]+/, '/cpsess[redacted]'),
                 title: document.title,
                 origin: location.origin,
-                path: location.pathname
+                path: location.pathname.replace(/^\\/cpsess[^/]+/, '/cpsess[redacted]')
               };
               const match = location.pathname.match(/^\\/cpsess[^/]+/);
               if (!match) {
@@ -207,7 +207,7 @@ class CpanelBrowserMailboxManager:
                 match[0] + '/execute/Email/list_pops?domain=' + encodeURIComponent(domain),
                 location.origin
               );
-              result.endpointPath = endpoint.pathname;
+              result.endpointPath = endpoint.pathname.replace(/^\\/cpsess[^/]+/, '/cpsess[redacted]');
               try {
                 const response = await fetch(endpoint.href, {
                   method: 'GET',
