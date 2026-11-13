@@ -302,12 +302,37 @@ with mailbox_tab:
         "Mode browser-session tidak memerlukan cPanel API Token. "
         "Password cPanel dan cpsess tidak disimpan di .env atau GitHub."
     )
+    env_mailbox_password = os.getenv("QA_MAILBOX_MASTER_PASSWORD", "").strip()
+    mailbox_password_input = st.text_input(
+        "Shared QA mailbox password (optional)",
+        value=env_mailbox_password,
+        type="password",
+        placeholder="Kosongkan untuk password acak unik",
+        help=(
+            "Isi password QA pilihan untuk menyamakan password sementara. "
+            "Field ini hanya berada di sesi dashboard; .env lokal lebih cocok untuk konfigurasi tetap."
+        ),
+        key="qa_mailbox_password_input",
+    ).strip()
+    if not mailbox_password_input and not st.session_state.get("mailbox_password_notice_dismissed", False):
+        with st.container(border=True):
+            notice_col, dismiss_col = st.columns([8, 1])
+            with notice_col:
+                st.warning(
+                    "Password seragam belum diatur. Pembuatan tetap bisa berjalan dengan "
+                    "password acak dan unik untuk setiap mailbox; kredensial tersedia melalui CSV."
+                )
+            with dismiss_col:
+                if st.button("Dismiss", key="dismiss_mailbox_password_notice"):
+                    st.session_state["mailbox_password_notice_dismissed"] = True
+                    st.rerun()
+
     cpanel_manager = CpanelBrowserMailboxManager(
         cpanel_url="https://juwana.iixcp.rumahweb.net:2083",
         domain="teguhharits.com",
         prefix="qa",
         quota_mb=50,
-        mailbox_password=os.getenv("QA_MAILBOX_MASTER_PASSWORD", ""),
+        mailbox_password=mailbox_password_input,
     )
 
     c1, c2 = st.columns(2)
@@ -344,6 +369,63 @@ with mailbox_tab:
             with st.expander("Detail diagnostik UAPI (session ID disamarkan)"):
                 st.json(diagnostics)
 
+        st.markdown("**Existing QA mailboxes**")
+        if st.button("Refresh existing mailbox list", key="refresh_existing_mailboxes"):
+            try:
+                st.session_state["existing_qa_mailboxes"] = cpanel_manager.list_domain_mailboxes()
+                st.session_state["mailbox_workflow_alert"] = {
+                    "kind": "success",
+                    "message": (
+                        f"Ditemukan {len(st.session_state['existing_qa_mailboxes'])} mailbox "
+                        f"dengan prefix {cpanel_manager.prefix} pada domain {cpanel_manager.domain}."
+                    ),
+                }
+            except MailboxError as exc:
+                st.session_state["mailbox_workflow_alert"] = {
+                    "kind": "error",
+                    "message": str(exc),
+                }
+
+        existing_qa_mailboxes = st.session_state.get("existing_qa_mailboxes", [])
+        if existing_qa_mailboxes:
+            selected_existing_mailboxes = st.multiselect(
+                "Pilih mailbox lama yang ingin disamakan password-nya",
+                options=existing_qa_mailboxes,
+                max_selections=5,
+                key="selected_existing_qa_mailboxes",
+            )
+            if mailbox_password_input and selected_existing_mailboxes:
+                if st.button(
+                    "Set same password for selected existing mailboxes",
+                    key="reset_selected_existing_mailboxes",
+                    use_container_width=True,
+                ):
+                    try:
+                        with st.spinner("Memperbarui password mailbox terpilih..."):
+                            reset_rows = cpanel_manager.reset_mailbox_passwords(
+                                selected_existing_mailboxes
+                            )
+                        if reset_rows and all(row["status"] == "updated" for row in reset_rows):
+                            st.session_state["mailbox_workflow_alert"] = {
+                                "kind": "success",
+                                "message": (
+                                    f"Password berhasil diperbarui untuk {len(reset_rows)} mailbox. "
+                                    "Simpan password ini dengan aman."
+                                ),
+                            }
+                        else:
+                            st.session_state["mailbox_workflow_alert"] = {
+                                "kind": "error",
+                                "message": "Sebagian mailbox gagal diubah: " + str(reset_rows),
+                            }
+                    except MailboxError as exc:
+                        st.session_state["mailbox_workflow_alert"] = {
+                            "kind": "error",
+                            "message": str(exc),
+                        }
+        elif session_ready:
+            st.caption("Klik Refresh existing mailbox list untuk memuat mailbox QA yang sudah ada.")
+
         if st.button(
             "Create 5 New Emails",
             type="primary",
@@ -358,14 +440,33 @@ with mailbox_tab:
                 st.session_state["latest_mailbox_batch"] = mailbox_rows
                 successful = sum(row.get("status") == "created" for row in mailbox_rows)
                 if successful == 5 and len(mailbox_rows) == 5:
-                    st.success("Berhasil membuat dan memverifikasi kelima mailbox.")
+                    st.session_state["mailbox_workflow_alert"] = {
+                        "kind": "success",
+                        "message": "Berhasil membuat dan memverifikasi kelima mailbox.",
+                    }
                 else:
-                    st.error(
-                        f"Baru {successful}/5 mailbox terverifikasi. "
-                        "Tahap Google OAuth belum dibuka."
-                    )
+                    st.session_state["mailbox_workflow_alert"] = {
+                        "kind": "error",
+                        "message": (
+                            f"Baru {successful}/5 mailbox terverifikasi. "
+                            "Tahap Google OAuth belum dibuka. Periksa tabel hasil."
+                        ),
+                    }
             except MailboxError as exc:
-                st.error(str(exc))
+                st.session_state["mailbox_workflow_alert"] = {
+                    "kind": "error",
+                    "message": str(exc),
+                }
+
+        alert = st.session_state.get("mailbox_workflow_alert")
+        if alert:
+            if alert.get("kind") == "error":
+                st.error(alert.get("message", "Mailbox operation failed."))
+            elif alert.get("kind") == "success":
+                st.success(alert.get("message", "Mailbox operation completed."))
+            if st.button("Dismiss alert", key="dismiss_mailbox_workflow_alert"):
+                st.session_state.pop("mailbox_workflow_alert", None)
+                st.rerun()
 
         mailbox_rows = st.session_state.get("latest_mailbox_batch", [])
         batch_complete = (
@@ -381,7 +482,7 @@ with mailbox_tab:
                 file_name="simuru-five-mailboxes.csv",
                 mime="text/csv",
             )
-            if os.getenv("QA_MAILBOX_MASTER_PASSWORD", "").strip():
+            if mailbox_password_input:
                 if st.button("Set same password for these 5 mailboxes", use_container_width=True):
                     try:
                         with st.spinner("Memperbarui password mailbox di cPanel..."):
@@ -392,16 +493,24 @@ with mailbox_tab:
                         if reset_rows and all(row["status"] == "updated" for row in reset_rows):
                             for mailbox_row in mailbox_rows:
                                 if mailbox_row.get("status") == "created":
-                                    mailbox_row["password"] = os.getenv("QA_MAILBOX_MASTER_PASSWORD", "")
+                                    mailbox_row["password"] = mailbox_password_input
                             st.session_state["latest_mailbox_batch"] = mailbox_rows
-                            st.success("Password mailbox berhasil diseragamkan. Download ulang CSV agar berisi password terbaru.")
+                            st.session_state["mailbox_workflow_alert"] = {
+                                "kind": "success",
+                                "message": "Password mailbox berhasil diseragamkan. Download ulang CSV agar berisi password terbaru.",
+                            }
                         else:
-                            st.warning("Sebagian password belum berhasil diperbarui.")
-                            st.dataframe(pd.DataFrame(reset_rows), hide_index=True)
+                            st.session_state["mailbox_workflow_alert"] = {
+                                "kind": "error",
+                                "message": "Sebagian password belum berhasil diperbarui: " + str(reset_rows),
+                            }
                     except MailboxError as exc:
-                        st.error(str(exc))
+                        st.session_state["mailbox_workflow_alert"] = {
+                            "kind": "error",
+                            "message": str(exc),
+                        }
             else:
-                st.warning("Atur QA_MAILBOX_MASTER_PASSWORD di .env lokal untuk memakai password seragam.")
+                st.info("Password acak unik sedang digunakan. Isi field Shared QA mailbox password untuk menyamakan password kelima mailbox.")
 
         if batch_complete:
             st.divider()
@@ -436,16 +545,60 @@ with mailbox_tab:
                 google_controls = oauth_inspection.get("google_buttons", [])
                 if google_controls:
                     st.dataframe(pd.DataFrame(google_controls), use_container_width=True, hide_index=True)
+                    control_labels = [
+                        f"{item.get('text') or 'Google sign-in'} · {item.get('selector')}"
+                        for item in google_controls
+                    ]
+                    chosen_control_label = st.selectbox(
+                        "Detected Google sign-in button",
+                        control_labels,
+                        key="integrated_google_button_choice",
+                    )
+                    chosen_control = google_controls[control_labels.index(chosen_control_label)]
+                    st.caption(
+                        "SIMURU akan membuka halaman dan mengeklik tombol Google. "
+                        "Kamu tetap menyelesaikan pemilihan Google Account, login, consent, CAPTCHA, dan MFA."
+                    )
+                    if st.button(
+                        "Start Google OAuth registration",
+                        type="primary",
+                        use_container_width=True,
+                        key="start_google_oauth_registration",
+                    ):
+                        try:
+                            message = cpanel_manager.start_google_oauth_flow(
+                                str(st.session_state["integrated_oauth_target"]),
+                                str(chosen_control.get("selector", "")),
+                            )
+                            st.session_state["mailbox_workflow_alert"] = {
+                                "kind": "success",
+                                "message": (
+                                    message + " Test identity yang dipilih: "
+                                    + str(st.session_state.get("integrated_oauth_email", ""))
+                                ),
+                            }
+                        except MailboxError as exc:
+                            st.session_state["mailbox_workflow_alert"] = {
+                                "kind": "error",
+                                "message": str(exc),
+                            }
                 else:
-                    st.warning("Tombol Google OAuth belum terdeteksi pada halaman tersebut.")
-                st.caption("Penyelesaian login Google, consent, CAPTCHA, dan MFA tetap dilakukan manual oleh pemilik akun.")
-                if st.button("Open website for Google OAuth QA", type="primary", use_container_width=True):
-                    try:
-                        message = cpanel_manager.open_website_for_oauth_qa(str(st.session_state['integrated_oauth_target']))
-                        st.success(message)
-                        st.info("Akun test yang dipilih: " + str(st.session_state.get("integrated_oauth_email", "")) + ". Pilih akun tersebut pada Google secara manual.")
-                    except MailboxError as exc:
-                        st.error(str(exc))
+                    st.warning(
+                        "Tombol Google OAuth belum terdeteksi. Periksa URL halaman registrasi "
+                        "dan pastikan tombol tersedia setelah halaman dimuat."
+                    )
+                    if st.button("Open registration page manually"):
+                        try:
+                            message = cpanel_manager.open_website_for_oauth_qa(
+                                str(st.session_state["integrated_oauth_target"])
+                            )
+                            st.info(message)
+                        except MailboxError as exc:
+                            st.error(str(exc))
+                st.caption(
+                    "Ulangi satu per satu untuk setiap test identity. Pastikan akun Google sudah "
+                    "terdaftar; mailbox saja belum cukup untuk login Google."
+                )
     render_mailbox_workflow()
 
 with website_tab:

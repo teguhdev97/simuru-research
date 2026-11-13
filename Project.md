@@ -213,3 +213,21 @@ The mailboxes are not Google Accounts by default. The owner must register each
 address as a Google Account and add it to the Google OAuth consent-screen Test Users
 list first. The browser flow does not automate Google account creation, credentials,
 CAPTCHA, MFA, or consent.
+
+
+## Google OAuth registration launcher
+
+After five verified mailboxes are available and the owner confirms that the five
+addresses correspond to real Google Accounts added as OAuth Test Users, the integrated
+QA section accepts an authorized registration URL. Playwright inspects the page,
+lists visible Google sign-in controls, and can click the selected detected control in
+the local Chromium session. The user completes Google account selection, credentials,
+consent, CAPTCHA and MFA manually. The target application's own OAuth callback must
+validate the Google ID token and create/link the local application user. The launcher
+does not create Google Accounts or infer that an email mailbox is a Google identity.
+
+The public JagoFlutter login page currently presents Google-only login. The public
+registration page also lists an email/password signup option. If email/password
+registration exists but no email/password login route is implemented, that is a
+separate JagoFlutter application feature and must be fixed in the JagoFlutter source
+repository, not in SIMURU.

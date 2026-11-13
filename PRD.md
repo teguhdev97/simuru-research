@@ -298,3 +298,14 @@ The UAPI parser must support the documented nested `result.status` object and di
   it in the local Chromium session.
 - Google Account creation, account selection, consent, CAPTCHA and MFA remain owner-
   supervised manual steps. A mailbox alone is not a Google Account.
+
+
+### 5.9 Google OAuth registration launcher
+
+- After the five-mailbox success gate and confirmation of valid Google Test Users, accept a dynamic authorized registration URL.
+- Inspect the page and enumerate detected Google sign-in controls.
+- Let the operator select a detected control and click it through Playwright in local Chromium.
+- Hand off Google account selection, authentication, consent, CAPTCHA and MFA to the user.
+- The target application's OAuth callback is responsible for validating the ID token and creating/linking its own application account.
+- No Google Account creation or credential automation is included.
+- Keep email/password authentication in the target application's own implementation; do not treat mailbox passwords as Google or target-site passwords.

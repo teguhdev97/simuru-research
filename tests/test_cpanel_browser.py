@@ -70,18 +70,27 @@ def test_uapi_succeeded_rejects_error_envelopes():
 
 
 
-def test_create_five_requires_local_password_before_browser_access():
+def test_create_five_manager_allows_empty_password_for_random_generation():
     manager = CpanelBrowserMailboxManager(
         cpanel_url="https://cpanel.example.test:2083",
         domain="teguhharits.com",
         mailbox_password="",
     )
-    try:
-        manager.create_five()
-    except Exception as exc:
-        assert "QA_MAILBOX_MASTER_PASSWORD" in str(exc)
-    else:
-        raise AssertionError("Mailbox creation must require an explicit local password")
+    assert manager.mailbox_password == ""
+    generated = manager._generate_mailbox_password()
+    assert len(generated) >= 20
+    assert any(char.islower() for char in generated)
+    assert any(char.isupper() for char in generated)
+    assert any(char.isdigit() for char in generated)
+
+
+def test_create_five_manager_keeps_configured_shared_password():
+    manager = CpanelBrowserMailboxManager(
+        cpanel_url="https://cpanel.example.test:2083",
+        domain="teguhharits.com",
+        mailbox_password="Test-Shared-QA-Password-2026!",
+    )
+    assert manager.mailbox_password == "Test-Shared-QA-Password-2026!"
 
 
 def test_reset_mailbox_passwords_rejects_other_domains():
@@ -96,3 +105,32 @@ def test_reset_mailbox_passwords_rejects_other_domains():
         assert "domain" in str(exc).lower()
     else:
         raise AssertionError("Password reset must be restricted to the owned QA domain")
+
+
+
+def test_oauth_target_allows_localhost_http():
+    assert CpanelBrowserMailboxManager._validate_oauth_target_url(
+        "http://localhost:3000/register"
+    ) == "http://localhost:3000/register"
+
+
+def test_oauth_target_rejects_remote_http():
+    try:
+        CpanelBrowserMailboxManager._validate_oauth_target_url(
+            "http://example.com/register"
+        )
+    except Exception as exc:
+        assert "HTTPS" in str(exc)
+    else:
+        raise AssertionError("Remote HTTP targets must be rejected")
+
+
+def test_oauth_target_rejects_embedded_credentials():
+    try:
+        CpanelBrowserMailboxManager._validate_oauth_target_url(
+            "https://user:pass@example.com/register"
+        )
+    except Exception as exc:
+        assert "credentials" in str(exc).lower()
+    else:
+        raise AssertionError("Credentials in URLs must be rejected")

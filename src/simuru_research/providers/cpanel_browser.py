@@ -404,10 +404,37 @@ class CpanelBrowserMailboxManager:
             raise MailboxError("Format data Email::list_pops tidak dikenali.")
         return data
 
+    def list_domain_mailboxes(self) -> list[str]:
+        """Return mailbox addresses on the configured QA domain after UAPI authentication."""
+        with self._attached_browser() as (_, _, pages):
+            page, _ = self._find_authenticated_page(pages)
+            if page is None:
+                raise MailboxError("Sesi cPanel belum terverifikasi.")
+            rows = self._list_mailboxes(page)
+            return sorted({
+                str(row.get("email", "")).strip().lower()
+                for row in rows
+                if isinstance(row, dict)
+                and str(row.get("email", "")).strip().lower().endswith("@" + self.domain)
+                and str(row.get("email", "")).strip().lower().split("@", 1)[0].startswith(self.prefix)
+            })
+
+    @staticmethod
+    def _generate_mailbox_password() -> str:
+        """Generate a unique password when no shared QA password was configured."""
+        alphabet = string.ascii_letters + string.digits + "!@#$%_-"
+        while True:
+            value = "".join(secrets.choice(alphabet) for _ in range(28))
+            if (any(c.islower() for c in value) and any(c.isupper() for c in value)
+                and any(c.isdigit() for c in value) and any(c in "!@#$%_-" for c in value)):
+                return value
+
     def create_five(self) -> list[dict[str, str]]:
-        """Create exactly five unique mailboxes, preserving partial results safely."""
-        if len(self.mailbox_password) < 12:
-            raise MailboxError("Atur QA_MAILBOX_MASTER_PASSWORD di .env lokal sebelum membuat mailbox.")
+        """Create exactly five unique mailboxes with a configured or generated QA password."""
+        if self.mailbox_password and len(self.mailbox_password) < 12:
+            raise MailboxError(
+                "Password seragam minimal 12 karakter. Kosongkan field untuk memakai password acak unik."
+            )
         with self._attached_browser() as (_, _, pages):
             page, diagnostics = self._find_authenticated_page(pages)
             if page is None:
@@ -438,7 +465,7 @@ class CpanelBrowserMailboxManager:
                     })
                     break
 
-                password = self.mailbox_password
+                password = self.mailbox_password or self._generate_mailbox_password()
                 record = {
                     "email": address,
                     "password": password,
@@ -555,18 +582,52 @@ class CpanelBrowserMailboxManager:
                 results.append({"email": email, "status": "updated" if self._uapi_succeeded(payload) else "failed"})
         return results
 
-    def open_website_for_oauth_qa(self, url: str) -> str:
-        """Open an authorized staging/local registration page for manual Google OAuth QA."""
+    @staticmethod
+    def _validate_oauth_target_url(url: str) -> str:
         from urllib.parse import urlparse
+
         parsed = urlparse(url.strip())
         if parsed.scheme not in {"http", "https"} or not parsed.hostname:
             raise MailboxError("Masukkan URL website HTTP(S) yang valid.")
+        if parsed.username or parsed.password:
+            raise MailboxError("URL target tidak boleh mengandung kredensial.")
         if parsed.scheme != "https" and parsed.hostname not in {"localhost", "127.0.0.1"}:
             raise MailboxError("Website remote harus menggunakan HTTPS.")
+        return url.strip()
+
+    def open_website_for_oauth_qa(self, url: str) -> str:
+        """Open an authorized registration page in the local Chromium session."""
+        target = self._validate_oauth_target_url(url)
         with self._attached_browser() as (_, context, _):
             page = context.new_page()
-            page.goto(url, wait_until="domcontentloaded", timeout=30_000)
-        return "Halaman pengujian dibuka di Chromium untuk proses OAuth manual."
+            page.goto(target, wait_until="domcontentloaded", timeout=30_000)
+        return "Halaman registrasi dibuka di Chromium. Pilih akun Google yang valid secara manual."
+
+    def start_google_oauth_flow(self, url: str, google_button_selector: str) -> str:
+        """Navigate to an authorized registration page and click its Google button.
+
+        Google authentication and consent are deliberately left to the user.
+        """
+        target = self._validate_oauth_target_url(url)
+        selector = google_button_selector.strip()
+        if not selector or len(selector) > 500:
+            raise MailboxError("Selector tombol Google tidak valid.")
+        with self._attached_browser() as (_, context, _):
+            page = context.new_page()
+            page.goto(target, wait_until="domcontentloaded", timeout=30_000)
+            button = page.locator(selector).first
+            button.wait_for(state="visible", timeout=10_000)
+            button.click(timeout=10_000)
+            try:
+                page.wait_for_load_state("domcontentloaded", timeout=5_000)
+            except Exception:
+                # Popup-based Google Identity Services may not navigate this page.
+                pass
+        return (
+            "Tombol Google berhasil diklik. Selesaikan pemilihan akun, login, "
+            "dan consent Google secara manual pada Chromium."
+        )
+
     def close(self) -> dict[str, str]:
         """Attempt server-side cPanel logout, clear cookies, then close Chromium."""
         logout_confirmed = False
