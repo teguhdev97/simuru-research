@@ -420,16 +420,17 @@ and [Configure OAuth consent / test users](https://developers.google.com/workspa
 
 ### Integrated five-mailbox → Google OAuth QA workflow
 
-The Mailbox Manager uses the local `QA_MAILBOX_MASTER_PASSWORD` setting for a
-consistent temporary password. Put it only in your ignored local `.env` file, not
-in GitHub. For the requested test value, add this line locally:
+The Mailbox Manager accepts an optional shared password in its dashboard field or
+from local `QA_MAILBOX_MASTER_PASSWORD`. If it is left blank, SIMURU generates a
+strong random password per mailbox, preserving the previous successful flow. A
+password entered in the dashboard is kept in the local Streamlit session; a persistent
+value belongs only in your ignored `.env` file. Example placeholder:
 
 ```dotenv
 QA_MAILBOX_MASTER_PASSWORD=<your-local-temporary-password>
 ```
 
-The five mailboxes already created with random passwords can be selected and reset
-using **Set same password for these 5 mailboxes** after the cPanel session is verified.
+The five mailboxes already created with random passwords can be found with **Refresh existing mailbox list**, selected in the dashboard, and reset with **Set same password for selected existing mailboxes** after the cPanel session is verified. The current batch can also be reset with **Set same password for these 5 mailboxes**.
 New batches use the configured password from the start. This shared password is only
 for short-lived QA and should be rotated after testing.
 
