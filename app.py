@@ -660,7 +660,7 @@ with mailbox_tab:
 
         if batch_complete:
             st.divider()
-            st.subheader("Google OAuth Registration QA")
+            st.subheader("Owned Website Registration QA")
             st.success("Lima mailbox berhasil dibuat dan diverifikasi.")
             test_emails = [str(row["email"]) for row in mailbox_rows]
             st.caption(
@@ -741,7 +741,8 @@ with mailbox_tab:
                         st.error(
                             "Form email belum bisa dijalankan. Selector belum terdeteksi: "
                             + ", ".join(missing)
-                            + ". Periksa form dan simpan selector pada tab Website Automation."
+                            + ". Periksa atau koreksi selector pada panel di atas."
+
                         )
                         return
 
