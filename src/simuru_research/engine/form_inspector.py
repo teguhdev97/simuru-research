@@ -95,15 +95,15 @@ def inspect_form(url: str, *, timeout_ms: int = 20000) -> dict[str, object]:
     }
     """
 
+    playwright = sync_playwright().start()
     browser = None
     try:
-        with sync_playwright() as playwright:
-            browser = playwright.chromium.launch(headless=True)
-            page = browser.new_page()
-            page.set_default_navigation_timeout(timeout_ms)
-            page.goto(url.strip(), wait_until="domcontentloaded")
-            page.wait_for_timeout(1200)
-            data = page.evaluate(script)
+        browser = playwright.chromium.launch(headless=True)
+        page = browser.new_page()
+        page.set_default_navigation_timeout(timeout_ms)
+        page.goto(url.strip(), wait_until="domcontentloaded")
+        page.wait_for_timeout(1200)
+        data = page.evaluate(script)
     except PlaywrightError as exc:
         raise FormInspectionError(
             f"Gagal memeriksa halaman: {type(exc).__name__}. "
@@ -112,6 +112,7 @@ def inspect_form(url: str, *, timeout_ms: int = 20000) -> dict[str, object]:
     finally:
         if browser is not None:
             browser.close()
+        playwright.stop()
 
     inputs = data.get("inputs", [])
     buttons = data.get("buttons", [])
