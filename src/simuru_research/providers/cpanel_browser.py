@@ -173,30 +173,118 @@ class CpanelBrowserMailboxManager:
         assert self._page is not None
         return self._page
 
+    def _cpanel_pages(self) -> list[Page]:
+        """Return all tabs belonging to the configured cPanel host."""
+        if not self._cdp_ready():
+            return []
+        self._attach()
+        assert self._context is not None
+        expected_host = self.cpanel_url.split("://", 1)[-1].split("/", 1)[0].lower()
+        return [
+            page for page in reversed(self._context.pages)
+            if page.url.lower().startswith("https://")
+            and expected_host in page.url.lower()
+            and ":2083" in page.url.lower()
+        ]
+
+    @staticmethod
+    def _probe_cpanel_page(page: Page, domain: str) -> dict[str, Any]:
+        return page.evaluate(
+            """async (domain) => {
+              const result = {
+                ok: false,
+                pageUrl: location.href,
+                title: document.title,
+                origin: location.origin,
+                path: location.pathname
+              };
+              const match = location.pathname.match(/^\\/cpsess[^/]+/);
+              if (!match) {
+                result.reason = 'URL tab tidak memiliki prefix sesi /cpsess...';
+                return result;
+              }
+              const endpoint = new URL(
+                match[0] + '/execute/Email/list_pops?domain=' + encodeURIComponent(domain),
+                location.origin
+              );
+              result.endpointPath = endpoint.pathname;
+              try {
+                const response = await fetch(endpoint.href, {
+                  method: 'GET',
+                  credentials: 'same-origin',
+                  cache: 'no-store',
+                  headers: {'Accept': 'application/json'}
+                });
+                result.httpStatus = response.status;
+                result.responseUrl = response.url;
+                result.redirected = response.redirected;
+                const raw = await response.text();
+                let payload;
+                try { payload = JSON.parse(raw); }
+                catch (_) {
+                  result.reason = 'UAPI tidak mengembalikan JSON; kemungkinan diarahkan ke halaman login.';
+                  result.responsePreview = raw.slice(0, 180).replace(/\\s+/g, ' ');
+                  return result;
+                }
+                const apiStatus = payload?.result?.status;
+                result.apiStatus = apiStatus ?? null;
+                result.apiErrors = payload?.result?.errors ?? null;
+                result.apiMessages = payload?.result?.messages ?? null;
+                result.ok = response.ok && String(apiStatus) === '1' && !response.redirected;
+                if (!result.ok) {
+                  result.reason = response.redirected
+                    ? 'Permintaan UAPI dialihkan; sesi mungkin kedaluwarsa.'
+                    : (result.apiErrors || result.apiMessages || 'UAPI menolak permintaan atau status API bukan 1.');
+                }
+                return result;
+              } catch (error) {
+                result.reason = 'Fetch UAPI gagal: ' + String(error);
+                return result;
+              }
+            }""",
+            domain,
+        )
+
     def session_status(self) -> dict[str, Any]:
+        """Check authenticated UAPI access across all open cPanel tabs."""
         try:
-            page = self._ensure_attached()
-            origin = page.evaluate("() => location.origin")
-            if not origin.startswith("https://") or ":2083" not in origin:
-                return {"connected": False, "message": "Buka halaman cPanel port 2083."}
-            probe = page.evaluate(
-                """async (domain) => {
-                  const match = location.pathname.match(/^\/cpsess[^/]+/);
-                  if (!match) return {ok: false, reason: 'cPanel session prefix not found'};
-                  const endpoint = match[0] + '/execute/Email/list_pops?domain=' + encodeURIComponent(domain);
-                  const response = await fetch(endpoint, {credentials: 'same-origin'});
-                  if (!response.ok) return {ok: false, status: response.status};
-                  const payload = await response.json();
-                  return {ok: payload?.result?.status === 1};
-                }""",
-                self.domain,
-            )
+            pages = self._cpanel_pages()
+            if not pages:
+                return {
+                    "connected": False,
+                    "message": "Tab cPanel tidak ditemukan pada Chromium SIMURU. Klik Connect cPanel.",
+                    "diagnostics": [],
+                }
+            diagnostics: list[dict[str, Any]] = []
+            for page in pages:
+                try:
+                    probe = self._probe_cpanel_page(page, self.domain)
+                    diagnostics.append(probe)
+                    if probe.get("ok"):
+                        self._page = page
+                        return {
+                            "connected": True,
+                            "message": "Sesi cPanel aktif; UAPI Email::list_pops berhasil diakses.",
+                            "diagnostics": diagnostics,
+                        }
+                except Exception as exc:
+                    diagnostics.append({
+                        "pageUrl": page.url,
+                        "reason": f"{type(exc).__name__}: {exc}",
+                    })
+            last = diagnostics[-1] if diagnostics else {}
+            reason = last.get("reason") or "Tidak ada tab cPanel yang lolos pemeriksaan UAPI."
             return {
-                "connected": bool(probe.get("ok")),
-                "message": "Sesi cPanel aktif." if probe.get("ok") else "Login cPanel diperlukan.",
+                "connected": False,
+                "message": f"Browser cPanel ditemukan, tetapi UAPI belum terautentikasi: {reason}",
+                "diagnostics": diagnostics,
             }
         except Exception as exc:
-            return {"connected": False, "message": f"Sesi browser tidak tersedia: {type(exc).__name__}"}
+            return {
+                "connected": False,
+                "message": f"Gagal memeriksa browser cPanel: {type(exc).__name__}: {exc}",
+                "diagnostics": [],
+            }
 
     def create_eight(self) -> list[dict[str, str]]:
         """Create exactly eight unique mailboxes using the authenticated cPanel session."""
