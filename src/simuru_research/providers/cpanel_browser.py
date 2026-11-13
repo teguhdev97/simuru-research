@@ -261,9 +261,10 @@ class CpanelBrowserMailboxManager:
 
         verified = page.evaluate(
             """async (domain) => {
-              const response = await fetch('/execute/Email/list_pops?domain=' + encodeURIComponent(domain), {
-                credentials: 'same-origin'
-              });
+              const match = location.pathname.match(/^\/cpsess[^/]+/);
+              if (!match) throw new Error('cPanel session prefix not found in URL');
+              const endpoint = match[0] + '/execute/Email/list_pops?domain=' + encodeURIComponent(domain);
+              const response = await fetch(endpoint, {credentials: 'same-origin'});
               if (!response.ok) throw new Error('list_pops HTTP ' + response.status);
               return await response.json();
             }""",
