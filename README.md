@@ -324,7 +324,7 @@ reader behavior. Keep cPanel tokens and mailbox master secrets in `.env` only.
 ## Mailbox Manager (five local cPanel mailboxes)
 
 The **Mailbox Manager** tab opens a persistent, visible Chromium profile on the local
-Windows laptop. Sign in manually to your own Rumahweb cPanel, then click **Create 8 New
+Windows laptop. Sign in manually to your own Rumahweb cPanel, then click **Create 5 New
 Emails**. SIMURU uses same-origin cPanel UAPI calls to list existing mailboxes, create
 five unique addresses, and verify the result.
 
