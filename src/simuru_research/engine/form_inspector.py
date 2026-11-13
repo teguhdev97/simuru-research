@@ -93,7 +93,7 @@ def inspect_form(url: str, *, timeout_ms: int = 20000) -> dict[str, object]:
             .replace(/\s+/g, ' ')
             .slice(0, 140),
           selector: uniqueSelector(el),
-          type: el.getAttribute('type') || (el.tagName.toLowerCase() === 'button' ? 'submit' : ''),
+          type: el.getAttribute('type') || (el.tagName.toLowerCase() === 'button' && el.form ? 'submit' : ''),
           href: el.getAttribute('href') || ''
         })).filter(x => x.text || x.href);
       return {title: document.title, url: location.href, inputs, buttons};
