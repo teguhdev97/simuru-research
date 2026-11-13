@@ -674,21 +674,65 @@ with mailbox_tab:
             if inspect_and_save:
                 if not owns_target:
                     st.error("Konfirmasi kepemilikan/izin website sebelum menjalankan QA.")
-                elif not accounts_ready:
-                    st.error("Selesaikan pembuatan Google Account dan penambahan Test Users terlebih dahulu.")
                 else:
                     try:
-                        with st.spinner("Memeriksa halaman registrasi dan tombol Google OAuth..."):
+                        with st.spinner("Memeriksa halaman registrasi dan tombol Google OAuth/email..."):
                             inspection = inspect_form(target_url)
                         st.session_state["integrated_oauth_target"] = target_url
                         st.session_state["integrated_oauth_inspection"] = inspection
                         st.session_state["integrated_oauth_email"] = selected_test_email
-                        st.success(f"Halaman diperiksa: {inspection.get('title') or inspection.get('url')}. {len(inspection.get('google_buttons', []))} kontrol Google terdeteksi.")
+                        st.session_state["integrated_oauth_authorized"] = True
+                        st.session_state["integrated_oauth_accounts_ready"] = accounts_ready
+                        st.success(
+                            f"Halaman diperiksa: {inspection.get('title') or inspection.get('url')}. "
+                            f"{len(inspection.get('google_buttons', []))} kontrol Google terdeteksi."
+                        )
                     except FormInspectionError as exc:
                         st.error(str(exc))
             oauth_inspection = st.session_state.get("integrated_oauth_inspection")
             if oauth_inspection:
                 google_controls = oauth_inspection.get("google_buttons", [])
+
+                def run_email_registration_fallback():
+                    selectors = oauth_inspection.get("selectors", {})
+                    required = ("email", "password", "submit")
+                    missing = [
+                        field for field in required if not str(selectors.get(field, "")).strip()
+                    ]
+                    if missing:
+                        st.error(
+                            "Form email belum bisa dijalankan. Selector belum terdeteksi: "
+                            + ", ".join(missing)
+                            + ". Periksa form dan simpan selector pada tab Website Automation."
+                        )
+                        return
+
+                    identities = [
+                        {
+                            "email": str(row["email"]),
+                            "password": cpanel_manager._generate_mailbox_password(),
+                            "name": f"SIMURU QA User {index:02d}",
+                        }
+                        for index, row in enumerate(mailbox_rows, start=1)
+                    ]
+                    try:
+                        with st.spinner(
+                            "Menjalankan pendaftaran email secara berurutan untuk 5 identitas QA..."
+                        ):
+                            results = cpanel_manager.run_email_registration_batch(
+                                str(st.session_state["integrated_oauth_target"]),
+                                selectors,
+                                identities,
+                            )
+                        st.session_state["email_fallback_results"] = results
+                        submitted = sum(item.get("status") == "submitted" for item in results)
+                        st.success(
+                            f"Fallback email selesai: {submitted}/5 form berhasil dikirim. "
+                            "Status submitted belum otomatis berarti email sudah terverifikasi."
+                        )
+                    except MailboxError as exc:
+                        st.error(f"Email fallback gagal: {exc}")
+
                 if google_controls:
                     st.dataframe(pd.DataFrame(google_controls), use_container_width=True, hide_index=True)
                     control_labels = [
@@ -711,36 +755,66 @@ with mailbox_tab:
                         use_container_width=True,
                         key="start_google_oauth_registration",
                     ):
-                        try:
-                            message = cpanel_manager.start_google_oauth_flow(
-                                str(st.session_state["integrated_oauth_target"]),
-                                str(chosen_control.get("selector", "")),
+                        if not st.session_state.get("integrated_oauth_accounts_ready", False):
+                            st.error(
+                                "Untuk jalur Google, kelima email harus sudah menjadi Google "
+                                "Account dan terdaftar sebagai OAuth Test Users."
                             )
-                            st.session_state["mailbox_workflow_alert"] = {
-                                "kind": "success",
-                                "message": (
-                                    message + " Test identity yang dipilih: "
-                                    + str(st.session_state.get("integrated_oauth_email", ""))
-                                ),
-                            }
-                        except MailboxError as exc:
-                            st.session_state["mailbox_workflow_alert"] = {
-                                "kind": "error",
-                                "message": str(exc),
-                            }
+                        else:
+                            try:
+                                message = cpanel_manager.start_google_oauth_flow(
+                                    str(st.session_state["integrated_oauth_target"]),
+                                    str(chosen_control.get("selector", "")),
+                                )
+                                st.session_state["mailbox_workflow_alert"] = {
+                                    "kind": "success",
+                                    "message": (
+                                        message + " Test identity yang dipilih: "
+                                        + str(st.session_state.get("integrated_oauth_email", ""))
+                                    ),
+                                }
+                            except MailboxError as exc:
+                                st.warning(
+                                    f"Tombol Google gagal dijalankan ({exc}). "
+                                    "SIMURU beralih ke fallback pendaftaran email."
+                                )
+                                run_email_registration_fallback()
                 else:
                     st.warning(
-                        "Tombol Google OAuth belum terdeteksi. Periksa URL halaman registrasi "
-                        "dan pastikan tombol tersedia setelah halaman dimuat."
+                        "Tombol Google OAuth tidak terdeteksi. SIMURU dapat memakai "
+                        "form email/password yang terdeteksi untuk lima identitas QA."
                     )
-                    if st.button("Open registration page manually"):
-                        try:
-                            message = cpanel_manager.open_website_for_oauth_qa(
-                                str(st.session_state["integrated_oauth_target"])
-                            )
-                            st.info(message)
-                        except MailboxError as exc:
-                            st.error(str(exc))
+                    if st.button(
+                        "Fallback: register 5 accounts with email",
+                        type="primary",
+                        use_container_width=True,
+                        key="start_email_registration_fallback",
+                    ):
+                        run_email_registration_fallback()
+
+                fallback_results = st.session_state.get("email_fallback_results", [])
+                if fallback_results:
+                    visible_results = [
+                        {
+                            "email": item.get("email", ""),
+                            "status": item.get("status", ""),
+                            "message": item.get("message", ""),
+                            "page_url": item.get("page_url", ""),
+                        }
+                        for item in fallback_results
+                    ]
+                    st.dataframe(
+                        pd.DataFrame(visible_results),
+                        use_container_width=True,
+                        hide_index=True,
+                    )
+                    st.download_button(
+                        "Download email QA credentials & results (CSV)",
+                        data=pd.DataFrame(fallback_results).to_csv(index=False).encode("utf-8"),
+                        file_name="simuru-email-registration-qa.csv",
+                        mime="text/csv",
+                        key="download_email_fallback_results",
+                    )
                 st.caption(
                     "Ulangi satu per satu untuk setiap test identity. Pastikan akun Google sudah "
                     "terdaftar; mailbox saja belum cukup untuk login Google."
