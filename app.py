@@ -576,6 +576,11 @@ with mailbox_tab:
                             mailbox_settings,
                             domain=cpanel_manager.domain,
                             prefix=cpanel_manager.prefix,
+                            mailbox_passwords={
+                                str(row["email"]).lower(): str(row.get("password", ""))
+                                for row in mailbox_rows
+                                if row.get("status") == "created"
+                            },
                         )
                         reader = ImapOTPReader(mailbox_settings)
                         # A bounded connectivity check using a short OTP wait window.
@@ -618,6 +623,11 @@ with mailbox_tab:
                             mailbox_settings,
                             domain=cpanel_manager.domain,
                             prefix=cpanel_manager.prefix,
+                            mailbox_passwords={
+                                str(row["email"]).lower(): str(row.get("password", ""))
+                                for row in mailbox_rows
+                                if row.get("status") == "created"
+                            },
                         )
                         reader = ImapOTPReader(mailbox_settings)
                         st.session_state["last_mailbox_otp"] = reader.wait_for_otp(
