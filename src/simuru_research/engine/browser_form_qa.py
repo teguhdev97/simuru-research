@@ -4,13 +4,6 @@ import os
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
-from selenium import webdriver
-from selenium.common.exceptions import TimeoutException, WebDriverException
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import WebDriverWait
-
 
 @dataclass(frozen=True, slots=True)
 class FormQASummary:
@@ -54,6 +47,19 @@ def inspect_registration_form(
     if not 1 <= timeout_seconds <= 60:
         raise ValueError("timeout_seconds must be between 1 and 60.")
     target = _validate_target_url(url)
+
+    # Keep Selenium optional so the core package and unit tests work without Chrome QA.
+    try:
+        from selenium import webdriver
+        from selenium.common.exceptions import TimeoutException, WebDriverException
+        from selenium.webdriver.chrome.options import Options
+        from selenium.webdriver.common.by import By
+        from selenium.webdriver.support import expected_conditions as EC
+        from selenium.webdriver.support.ui import WebDriverWait
+    except ImportError as exc:
+        raise RuntimeError(
+            "Browser QA dependencies are missing. Install them with: uv sync --extra browser-qa"
+        ) from exc
 
     options = Options()
     if headless:
