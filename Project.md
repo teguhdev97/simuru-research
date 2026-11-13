@@ -231,3 +231,19 @@ registration page also lists an email/password signup option. If email/password
 registration exists but no email/password login route is implemented, that is a
 separate JagoFlutter application feature and must be fixed in the JagoFlutter source
 repository, not in SIMURU.
+
+
+## Mailbox password and IMAP integration (current)
+
+The primary real-mailbox flow is the local cPanel browser-session manager. It does not
+use a cPanel API token. The password submitted to cPanel UAPI for each address is the
+same password handed to the local Windows Credential Manager via keyring after UAPI
+verification. IMAP reads that exact stored password. SMTP is optional and uses the
+same stored credential.
+
+The previous `MailboxProvisioner.password_for()` HMAC password derivation belongs
+only to the separate legacy API-token provisioning path. Never use its derived value
+to authenticate to mailboxes created by the browser-session manager.
+
+Existing mailbox credentials can be imported from the one-time CSV into Windows
+Credential Manager. Never save plaintext mailbox passwords in SQLite or GitHub.
