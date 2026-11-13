@@ -102,3 +102,50 @@ def test_mailbox_batch_stops_when_provider_rejects_creation(monkeypatch, tmp_pat
     repository = SQLiteRepository(tmp_path / "qa.sqlite3")
     with pytest.raises(MailboxError, match="cPanel rejected"):
         FiveMailboxBatchRunner(repository, settings()).run_batch()
+
+
+def test_imap_reader_uses_actual_injected_mailbox_password(monkeypatch):
+    from dataclasses import replace
+
+    from simuru_research.providers.mailbox import ImapOTPReader
+
+    calls = []
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            return None
+        def login(self, email, password):
+            calls.append((email, password))
+            return "OK", []
+        def select(self, mailbox, readonly=True):
+            assert mailbox == "INBOX"
+            return "OK", []
+        def logout(self):
+            return "BYE", []
+
+    monkeypatch.setattr("imaplib.IMAP4_SSL", FakeClient)
+    config = replace(
+        settings(),
+        mailbox_passwords={"qa-test-01@teguhharits.com": "actual-cpanel-password"},
+    )
+    ImapOTPReader(config).check_connection("qa-test-01@teguhharits.com")
+    assert calls == [("qa-test-01@teguhharits.com", "actual-cpanel-password")]
+
+
+def test_imap_reader_requires_vault_credential_when_not_injected():
+    from dataclasses import replace
+
+    from simuru_research.providers.mailbox import ImapOTPReader
+
+    class EmptyVault:
+        def get(self, email):
+            return None
+
+    config = replace(settings(), mailbox_passwords={})
+    reader = ImapOTPReader(config, credential_vault=EmptyVault())
+    with pytest.raises(MailboxError, match="credential"):
+        reader.check_connection("qa-test-01@teguhharits.com")
