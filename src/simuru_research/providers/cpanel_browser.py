@@ -326,10 +326,22 @@ class CpanelBrowserMailboxManager:
             raise MailboxError("Format data Email::list_pops tidak dikenali.")
         return data
 
+    @staticmethod
+    def _generate_mailbox_password() -> str:
+        """Generate a unique password when no shared QA password was configured."""
+        alphabet = string.ascii_letters + string.digits + "!@#$%_-"
+        while True:
+            value = "".join(secrets.choice(alphabet) for _ in range(28))
+            if (any(c.islower() for c in value) and any(c.isupper() for c in value)
+                and any(c.isdigit() for c in value) and any(c in "!@#$%_-" for c in value)):
+                return value
+
     def create_five(self) -> list[dict[str, str]]:
-        """Create exactly five unique mailboxes, preserving partial results safely."""
-        if len(self.mailbox_password) < 12:
-            raise MailboxError("Atur QA_MAILBOX_MASTER_PASSWORD di .env lokal sebelum membuat mailbox.")
+        """Create exactly five unique mailboxes with a configured or generated QA password."""
+        if self.mailbox_password and len(self.mailbox_password) < 12:
+            raise MailboxError(
+                "Password seragam minimal 12 karakter. Kosongkan field untuk memakai password acak unik."
+            )
         with self._attached_browser() as (_, _, pages):
             page, diagnostics = self._find_authenticated_page(pages)
             if page is None:
@@ -360,7 +372,7 @@ class CpanelBrowserMailboxManager:
                     })
                     break
 
-                password = self.mailbox_password
+                password = self.mailbox_password or self._generate_mailbox_password()
                 record = {
                     "email": address,
                     "password": password,
