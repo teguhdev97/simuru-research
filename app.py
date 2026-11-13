@@ -545,16 +545,60 @@ with mailbox_tab:
                 google_controls = oauth_inspection.get("google_buttons", [])
                 if google_controls:
                     st.dataframe(pd.DataFrame(google_controls), use_container_width=True, hide_index=True)
+                    control_labels = [
+                        f"{item.get('text') or 'Google sign-in'} · {item.get('selector')}"
+                        for item in google_controls
+                    ]
+                    chosen_control_label = st.selectbox(
+                        "Detected Google sign-in button",
+                        control_labels,
+                        key="integrated_google_button_choice",
+                    )
+                    chosen_control = google_controls[control_labels.index(chosen_control_label)]
+                    st.caption(
+                        "SIMURU akan membuka halaman dan mengeklik tombol Google. "
+                        "Kamu tetap menyelesaikan pemilihan Google Account, login, consent, CAPTCHA, dan MFA."
+                    )
+                    if st.button(
+                        "Start Google OAuth registration",
+                        type="primary",
+                        use_container_width=True,
+                        key="start_google_oauth_registration",
+                    ):
+                        try:
+                            message = cpanel_manager.start_google_oauth_flow(
+                                str(st.session_state["integrated_oauth_target"]),
+                                str(chosen_control.get("selector", "")),
+                            )
+                            st.session_state["mailbox_workflow_alert"] = {
+                                "kind": "success",
+                                "message": (
+                                    message + " Test identity yang dipilih: "
+                                    + str(st.session_state.get("integrated_oauth_email", ""))
+                                ),
+                            }
+                        except MailboxError as exc:
+                            st.session_state["mailbox_workflow_alert"] = {
+                                "kind": "error",
+                                "message": str(exc),
+                            }
                 else:
-                    st.warning("Tombol Google OAuth belum terdeteksi pada halaman tersebut.")
-                st.caption("Penyelesaian login Google, consent, CAPTCHA, dan MFA tetap dilakukan manual oleh pemilik akun.")
-                if st.button("Open website for Google OAuth QA", type="primary", use_container_width=True):
-                    try:
-                        message = cpanel_manager.open_website_for_oauth_qa(str(st.session_state['integrated_oauth_target']))
-                        st.success(message)
-                        st.info("Akun test yang dipilih: " + str(st.session_state.get("integrated_oauth_email", "")) + ". Pilih akun tersebut pada Google secara manual.")
-                    except MailboxError as exc:
-                        st.error(str(exc))
+                    st.warning(
+                        "Tombol Google OAuth belum terdeteksi. Periksa URL halaman registrasi "
+                        "dan pastikan tombol tersedia setelah halaman dimuat."
+                    )
+                    if st.button("Open registration page manually"):
+                        try:
+                            message = cpanel_manager.open_website_for_oauth_qa(
+                                str(st.session_state["integrated_oauth_target"])
+                            )
+                            st.info(message)
+                        except MailboxError as exc:
+                            st.error(str(exc))
+                st.caption(
+                    "Ulangi satu per satu untuk setiap test identity. Pastikan akun Google sudah "
+                    "terdaftar; mailbox saja belum cukup untuk login Google."
+                )
     render_mailbox_workflow()
 
 with website_tab:
