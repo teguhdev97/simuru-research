@@ -62,3 +62,7 @@ data/
 *.sqlite3
 *.sqlite
 .cpanel-browser-profile/
+# Google OAuth secrets
+credentials.json
+token.json
+token*.json
