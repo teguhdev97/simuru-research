@@ -11,7 +11,8 @@ async def create_mail_accounts():
         page = await context.new_page()
 
         # 1. Login ke Panel Hosting / cPanel Mail Anda
-        await page.goto("https://mail.teguhharits.com:2083") # Ganti dengan URL login panel mail/cPanel Anda
+        # URL login panel cPanel.
+        await page.goto("https://mail.teguhharits.com:2083")
         await page.fill("input[id='user']", "username_hosting_anda")
         await page.fill("input[id='pass']", "password_hosting_anda")
         await page.click("button#login_submit")
