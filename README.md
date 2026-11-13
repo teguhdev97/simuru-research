@@ -8,7 +8,7 @@ synthetic registration/verification QA against a **local sandbox only**.
 This project is deliberately limited to:
 
 - A read-only Simuru API connection check using **GET /api/profile**.
-- A local sandbox batch runner for up to 200 synthetic test identities.
+- A local sandbox batch runner for up to 100 synthetic test identities.
 - A bounded worker pool (default: 3 workers; maximum: 10).
 - SQLite run history and CSV export.
 - A Streamlit dashboard for monitoring test runs.
