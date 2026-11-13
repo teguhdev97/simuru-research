@@ -309,7 +309,7 @@ with mailbox_tab:
         type="password",
         placeholder="Kosongkan untuk password acak unik",
         help=(
-            "Isi Standard@321! untuk menyamakan password sementara. "
+            "Isi password QA pilihan untuk menyamakan password sementara. "
             "Field ini hanya berada di sesi dashboard; .env lokal lebih cocok untuk konfigurasi tetap."
         ),
         key="qa_mailbox_password_input",
