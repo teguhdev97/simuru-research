@@ -957,13 +957,15 @@ wheels = [
 
 [[package]]
 name = "simuru-research"
-version = "0.3.0"
+version = "0.6.0"
 source = { editable = "." }
 dependencies = [
+    { name = "fastapi" },
     { name = "httpx" },
     { name = "pandas" },
     { name = "python-dotenv" },
     { name = "streamlit" },
+    { name = "uvicorn" },
 ]
 
 [package.optional-dependencies]
@@ -974,12 +976,14 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "fastapi", specifier = ">=0.115,<1" },
     { name = "httpx", specifier = ">=0.28,<1" },
     { name = "pandas", specifier = ">=2.2,<4" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3,<10" },
     { name = "python-dotenv", specifier = ">=1.1,<2" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.11,<1" },
     { name = "streamlit", specifier = ">=1.40,<2" },
+    { name = "uvicorn", specifier = ">=0.34,<1" },
 ]
 provides-extras = ["dev"]
 
