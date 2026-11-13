@@ -15,5 +15,5 @@ class SandboxProvider:
         return SandboxIdentity(
             username=f"qa_{suffix}_{job_index:03d}",
             email=f"qa-{suffix}-{job_index:03d}@example.test",
-            phone=f"+120255501{phone_suffix:04d}",
+            phone=f"+1202555{phone_suffix:04d}",
         )
