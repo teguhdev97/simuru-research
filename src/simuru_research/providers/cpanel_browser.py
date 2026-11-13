@@ -488,9 +488,9 @@ class CpanelBrowserMailboxManager:
             raise MailboxError('Mailbox password cannot be empty.')
         self.credential_vault.save_many([{'email': normalized, 'password': password, 'status': 'created'}])
     def reset_mailbox_passwords(self, emails: list[str]) -> list[dict[str, str]]:
-        """Reset up to five explicitly selected QA mailboxes to the local master password."""
+        """Reset up to five explicitly selected QA mailboxes to the configured local password."""
         if len(self.mailbox_password) < 12:
-            raise MailboxError("QA_MAILBOX_MASTER_PASSWORD belum diatur di .env lokal.")
+            raise MailboxError("Masukkan shared QA mailbox password di dashboard (minimal 12 karakter).")
         normalized = [email.strip().lower() for email in emails]
         if not normalized or len(normalized) > 5 or len(set(normalized)) != len(normalized):
             raise MailboxError("Pilih satu sampai lima alamat mailbox yang unik.")
