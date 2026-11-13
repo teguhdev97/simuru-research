@@ -18,11 +18,11 @@ uv run streamlit run app.py
 ```
 
 Open **Mailbox Manager**, click **Connect cPanel**, finish login manually in the
-opened Chromium window, return to Streamlit, then click **Create 8 New Emails**.
+opened Chromium window, then return to Streamlit. Session status refreshes every three seconds; once UAPI succeeds, click **Create 5 New Emails**.
 
 The persistent browser profile is stored under `data/cpanel-browser-profile`.
 It contains the authenticated browser session and must remain local. Do not commit
-that directory, upload it, or share it. The eight generated mailbox passwords are
+that directory, upload it, or share it. The five generated mailbox passwords are
 shown once in the dashboard; download the CSV and store it securely.
 
 
@@ -37,3 +37,12 @@ must manually create or link a Google Account using Google's **Use your existing
 option, verify it through the mailbox, then add that Google Account manually under
 Google Auth Platform → Audience → Test users. Do not put the OAuth Client Secret in
 this application or in source control.
+
+
+## Session status refresh
+
+While Mailbox Manager is open, SIMURU checks cPanel UAPI every three seconds. This
+allows the UI to notice when the user completes the manual login in Chromium without
+requiring a manual refresh. The Create 5 action is disabled until UAPI confirms the
+session.
+
