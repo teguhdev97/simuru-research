@@ -1,6 +1,6 @@
 [project]
 name = "simuru-research"
-version = "0.5.0"
+version = "0.6.0"
 description = "Local SIMURU API research, team account registry, and synthetic QA dashboard"
 readme = "README.md"
 authors = [
