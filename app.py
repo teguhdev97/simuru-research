@@ -6,22 +6,35 @@ import streamlit as st
 from simuru_research.config.settings import Settings
 from simuru_research.engine.registration_qa import LocalRegistrationQARunner
 from simuru_research.engine.runner import BatchRunner
+from simuru_research.engine.website_registration_qa import (
+    WebsiteRegistrationQAError,
+    inspect_registration_form,
+    validate_registration_target,
+)
 from simuru_research.providers.simuru_client import SimuruAPIError, SimuruClient
 from simuru_research.security.auth_qa import LocalAuthQAService
 from simuru_research.storage.database import SQLiteRepository
 from simuru_research.storage.exporter import results_to_csv
 from simuru_research.storage.team_accounts import TeamAccountRegistry
+from simuru_research.storage.website_registration import WebsiteRegistrationRepository
+from simuru_research.ui.sneat_theme import (
+    inject_sneat_css,
+    render_kpi,
+    render_page_heading,
+    render_topbar,
+)
 
 settings = Settings.from_env()
 repository = SQLiteRepository(settings.database_path)
 team_accounts = TeamAccountRegistry(settings.database_path)
 auth_qa_service = LocalAuthQAService(settings.database_path)
+website_registration_repository = WebsiteRegistrationRepository(settings.database_path)
 
 st.set_page_config(page_title="Simuru Research", page_icon="🧪", layout="wide")
-st.title("Simuru Research Lab")
-st.caption(
-    "Local team registry · SIMURU API research · Registration QA · SQLite history"
-)
+inject_sneat_css()
+render_topbar()
+st.markdown('<div class="sneat-page-title">Analytics Dashboard</div><div class="sneat-breadcrumb">Home / Overview</div>', unsafe_allow_html=True)
+st.caption("Research workspace · Mailbox services · Website QA · Local persistence")
 
 with st.sidebar:
     st.subheader("Sandbox configuration")
@@ -44,27 +57,52 @@ with st.sidebar:
     st.caption("Registration QA uses local-only test identities and a local OTP outbox.")
     st.caption("No Instagram signup, external OTP retrieval, or provider rental is performed.")
 
-overview_tab, team_tab, sandbox_tab, registration_qa_tab, history_tab, api_tab = st.tabs(
-    [
-        "Overview",
-        "Team Accounts",
-        "Sandbox Batch",
-        "Registration QA",
-        "Run History & Export",
-        "SIMURU API",
-    ]
-)
+if "current_page" not in st.session_state:
+    st.session_state["current_page"] = "Overview"
 
+with st.sidebar:
+    st.markdown(
+        '<div class="sneat-brand" style="padding:.3rem .7rem 1.2rem">✦ simuru</div>',
+        unsafe_allow_html=True,
+    )
+    st.caption("WORKSPACE")
+    nav_items = [
+        ("Overview", "⌂"),
+        ("Mailbox Manager", "✉"),
+        ("Website Registration", "＋"),
+        ("Sandbox Batch", "▦"),
+        ("Team Accounts", "♙"),
+        ("Run History", "◷"),
+        ("SIMURU API", "⌘"),
+    ]
+    for label, icon in nav_items:
+        if st.button(
+            f"{icon}   {label}",
+            key=f"nav_{label.lower().replace(' ', '_')}",
+            type="primary" if st.session_state["current_page"] == label else "secondary",
+            use_container_width=True,
+        ):
+            st.session_state["current_page"] = label
+            st.rerun()
+
+overview_tab = team_tab = sandbox_tab = mailbox_tab = website_tab = registration_qa_tab = history_tab = api_tab = None
+if False:
+    overview_tab = None
 with overview_tab:
+    render_page_heading("Analytics Dashboard", "Dashboards")
     runs = repository.list_runs(limit=1)
     counts = team_accounts.count_by_type()
     account_total = sum(counts.values())
 
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Team accounts", account_total)
-    c2.metric("Personal", counts["personal"])
-    c3.metric("Creator", counts["creator"])
-    c4.metric("Business", counts["business"])
+    with c1:
+        render_kpi("Team Accounts", f"{account_total:,}", "Registry overview")
+    with c2:
+        render_kpi("Personal", f'{counts["personal"]:,}', "Manual only")
+    with c3:
+        render_kpi("Creator", f'{counts["creator"]:,}', "OAuth pending")
+    with c4:
+        render_kpi("Business", f'{counts["business"]:,}', "OAuth pending")
 
     if runs:
         latest = runs[0]
@@ -411,6 +449,207 @@ with history_tab:
                 use_container_width=True,
                 hide_index=True,
             )
+
+
+if st.session_state["current_page"] == "Website Registration":
+    render_page_heading("Website Registration", "Testing / Create New Account")
+    st.markdown(
+        '<div class="sneat-card"><b>Authorized Website QA</b><br>'
+        '<span style="color:#8592a3">Inspect a local or allowlisted staging registration page. '
+        'CAPTCHA and consent controls remain manual.</span></div>',
+        unsafe_allow_html=True,
+    )
+    target_url = st.text_input(
+        "Website registration URL",
+        placeholder="https://staging.your-domain.test/register",
+        key="website_registration_target_url",
+    )
+    allow_confirm = st.checkbox(
+        "Saya mengonfirmasi domain ini milik saya atau saya memiliki izin tertulis untuk QA."
+    )
+    mailbox_emails = [
+        str(row["email"])
+        for row in auth_qa_service.list_users(limit=500)
+        if row.get("email")
+    ]
+    if st.button("Inspect Website & Prepare QA", type="primary", use_container_width=True):
+        if not allow_confirm:
+            st.error("Konfirmasi otorisasi target terlebih dahulu.")
+        else:
+            try:
+                with st.spinner("Inspecting registration form..."):
+                    inspection = inspect_registration_form(target_url)
+                st.session_state["website_registration_inspection"] = inspection
+                st.session_state["website_registration_inspected_url"] = target_url
+                if not inspection.get("formFound"):
+                    st.warning(
+                        "Tidak ada form HTML yang terlihat. Jika tombol membuka modal, "
+                        "buka form secara manual pada staging dan inspect URL form tersebut."
+                    )
+                st.success(
+                    f"Inspeksi selesai: {len(inspection.get('inputs', []))} input "
+                    f"dan {len(inspection.get('buttons', []))} tombol ditemukan."
+                )
+            except (WebsiteRegistrationQAError, RuntimeError, ValueError) as exc:
+                detail = {
+                    "type": type(exc).__name__,
+                    "message": str(exc),
+                }
+                st.error("Inspection failed")
+                st.code(__import__("json").dumps(detail, indent=2, ensure_ascii=False), language="json")
+    inspection = st.session_state.get("website_registration_inspection")
+    if inspection:
+        st.markdown("#### Detected registration form")
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Form", "Found" if inspection.get("formFound") else "Not found")
+        m2.metric("Inputs", len(inspection.get("inputs", [])))
+        m3.metric("Buttons", len(inspection.get("buttons", [])))
+        m4.metric("Challenge", "Manual" if inspection.get("challengeDetected") else "Not detected")
+        st.dataframe(
+            pd.DataFrame(inspection.get("inputs", [])),
+            use_container_width=True,
+            hide_index=True,
+        )
+        st.caption("Selector suggestions are inspection metadata only; no registration is submitted.")
+        suggested = inspection.get("suggested_selectors", {})
+        st.json(suggested)
+        target = str(st.session_state.get("website_registration_inspected_url", ""))
+        if allow_confirm and target:
+            emails = st.text_area(
+                "QA email addresses (one per line)",
+                value="\n".join(mailbox_emails[:5]),
+                help="Use only mailbox addresses you control and that are approved for the staging environment.",
+            )
+            if st.button("Save QA test record", key="save_website_qa_record"):
+                clean_emails = sorted({item.strip().lower() for item in emails.splitlines() if item.strip()})
+                if not clean_emails:
+                    st.error("Masukkan setidaknya satu alamat email QA yang Anda kontrol.")
+                else:
+                    try:
+                        parsed_host = __import__("urllib.parse", fromlist=["urlparse"]).urlparse(target).hostname or ""
+                        run_id = website_registration_repository.create_run(
+                            target_url=target,
+                            website_host=parsed_host,
+                            emails=clean_emails,
+                        )
+                        st.session_state["selected_website_registration_run"] = run_id
+                        st.success("QA inspection record saved.")
+                    except Exception as exc:
+                        st.error(__import__("json").dumps({
+                            "type": type(exc).__name__,
+                            "message": str(exc),
+                        }, indent=2, ensure_ascii=False))
+
+    st.divider()
+    st.markdown("#### Website QA history")
+    page_size = 8
+    page_key = "website_registration_page"
+    total = website_registration_repository.count_runs()
+    total_pages = max(1, (total + page_size - 1) // page_size)
+    current_page = min(int(st.session_state.get(page_key, 1)), total_pages)
+    rows = website_registration_repository.list_runs(
+        limit=page_size, offset=(current_page - 1) * page_size
+    )
+    if not rows:
+        st.markdown(
+            '<div class="sneat-card" style="text-align:center;padding:2.5rem">'
+            '<div style="font-size:2.8rem;color:#a1acb8">▤</div>'
+            '<b>No registration tests yet</b><br>'
+            '<span style="color:#a1acb8">Inspect an authorized staging site to create your first record.</span>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        st.dataframe(
+            pd.DataFrame([
+                {
+                    "Test Registration Web": row["website_host"],
+                    "URL": row["target_url"],
+                    "Status": row["status"],
+                    "Created": row["created_at"],
+                    "Run ID": row["run_id"][:8],
+                }
+                for row in rows
+            ]),
+            use_container_width=True,
+            hide_index=True,
+        )
+        selected_id = st.selectbox(
+            "Open test registration details",
+            [row["run_id"] for row in rows],
+            format_func=lambda value: next(
+                f'{row["website_host"]} · {row["run_id"][:8]}' for row in rows if row["run_id"] == value
+            ),
+        )
+        if st.button("View details", key="open_website_registration_detail"):
+            st.session_state["selected_website_registration_run"] = selected_id
+        prev_col, page_col, next_col = st.columns([1, 2, 1])
+        with prev_col:
+            if st.button("← Previous", disabled=current_page <= 1):
+                st.session_state[page_key] = current_page - 1
+                st.rerun()
+        with page_col:
+            st.caption(f"Page {current_page} of {total_pages} · {total} records")
+        with next_col:
+            if st.button("Next →", disabled=current_page >= total_pages):
+                st.session_state[page_key] = current_page + 1
+                st.rerun()
+    detail_id = st.session_state.get("selected_website_registration_run")
+    if detail_id:
+        detail = website_registration_repository.get_run_detail(str(detail_id))
+        if detail:
+            with st.expander("Registration detail", expanded=True):
+                st.write(f'**Website:** {detail["target_url"]}')
+                st.write(f'**Status:** {detail["status"]}')
+                st.write("**Emails used:**")
+                st.dataframe(
+                    pd.DataFrame(detail.get("identities", [])),
+                    use_container_width=True,
+                    hide_index=True,
+                )
+                if detail.get("error"):
+                    st.code(
+                        __import__("json").dumps(detail["error"], indent=2, ensure_ascii=False),
+                        language="json",
+                    )
+elif st.session_state["current_page"] == "Overview":
+    render_page_heading("Analytics Dashboard", "Dashboards")
+    totals = team_accounts.count_by_type()
+    total_team = sum(totals.values())
+    qa_count = auth_qa_service.count_users()
+    run_count = len(repository.list_runs(limit=500))
+    kpis = st.columns(4)
+    for col, label, value, foot in zip(
+        kpis,
+        ["Team Accounts", "Local QA Users", "QA Runs", "Workspace"],
+        [str(total_team), str(qa_count), str(run_count), "Ready"],
+        ["Owner registry", "Local verification", "Stored history", "Local-first"],
+        strict=True,
+    ):
+        with col:
+            render_kpi(label, value, foot)
+    st.markdown('<div class="sneat-card"><b>Performance overview</b><p style="color:#8592a3">Your research workspace at a glance.</p></div>', unsafe_allow_html=True)
+    recent = repository.list_runs(limit=8)
+    if recent:
+        st.dataframe(pd.DataFrame(recent), use_container_width=True, hide_index=True)
+    else:
+        st.info("No QA runs yet.")
+elif st.session_state["current_page"] == "Sandbox Batch":
+    render_page_heading("Sandbox Batch", "Testing")
+    st.info("Gunakan tab lama pada bagian Sandbox Batch untuk konfigurasi dan hasil. UI sidebar ini sedang menjadi entrypoint baru.")
+elif st.session_state["current_page"] == "Mailbox Manager":
+    render_page_heading("Mailbox Manager", "Email")
+    st.info("Mailbox management tetap tersedia melalui alur CLI yang sudah ada pada rilis main.")
+elif st.session_state["current_page"] == "Team Accounts":
+    render_page_heading("Team Accounts", "Workspace")
+    st.info("Team registry tersedia di penyimpanan lokal.")
+elif st.session_state["current_page"] == "Run History":
+    render_page_heading("Run History", "Reports")
+    all_runs = repository.list_runs(limit=50)
+    st.dataframe(pd.DataFrame(all_runs), use_container_width=True, hide_index=True)
+elif st.session_state["current_page"] == "SIMURU API":
+    render_page_heading("SIMURU API Explorer", "Integrations")
+    st.info("API Explorer tetap tersedia pada halaman tab lama selama migrasi.")
 
 with api_tab:
     st.subheader("SIMURU API Explorer")
