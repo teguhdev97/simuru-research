@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
+
 from simuru_research.providers.cpanel_browser import CpanelBrowserMailboxManager
 
 
@@ -67,6 +69,52 @@ def test_uapi_result_accepts_legacy_cpanelresult_envelope():
 def test_uapi_succeeded_rejects_error_envelopes():
     assert not CpanelBrowserMailboxManager._uapi_succeeded({"result": {"status": 0}})
     assert not CpanelBrowserMailboxManager._uapi_succeeded({"error": "not authenticated"})
+
+
+def test_list_domain_email_addresses_includes_all_valid_domain_mailboxes(monkeypatch):
+    manager = CpanelBrowserMailboxManager(
+        cpanel_url="https://cpanel.example.test:2083",
+        domain="example.test",
+    )
+    page = object()
+
+    @contextmanager
+    def attached_browser():
+        yield None, None, [page]
+
+    monkeypatch.setattr(manager, "_attached_browser", attached_browser)
+    monkeypatch.setattr(manager, "_find_authenticated_page", lambda pages: (page, []))
+    monkeypatch.setattr(
+        manager,
+        "_list_mailboxes",
+        lambda authenticated_page: [
+            {"email": "qa-one@example.test"},
+            {"email": "owner@example.test"},
+            {"email": "invalid address@example.test"},
+            {"email": "outside@other.test"},
+            {"email": "bad-envelope"},
+        ],
+    )
+
+    assert manager.list_domain_email_addresses() == [
+        "qa-one@example.test",
+        "owner@example.test",
+    ]
+
+
+def test_list_domain_mailboxes_keeps_qa_prefix_filter(monkeypatch):
+    manager = CpanelBrowserMailboxManager(
+        cpanel_url="https://cpanel.example.test:2083",
+        domain="example.test",
+        prefix="qa",
+    )
+    monkeypatch.setattr(
+        manager,
+        "list_domain_email_addresses",
+        lambda: ["owner@example.test", "qa-one@example.test"],
+    )
+
+    assert manager.list_domain_mailboxes() == ["qa-one@example.test"]
 
 
 

@@ -197,7 +197,17 @@ class ImapOTPReader:
                 if status != "OK":
                     raise MailboxError("IMAP login succeeded, but INBOX could not be selected.")
                 client.logout()
-        except (imaplib.IMAP4.error, OSError) as exc:
+        except imaplib.IMAP4.error as exc:
+            if _is_authentication_error(str(exc)):
+                raise MailboxError(
+                    "IMAP menolak kredensial mailbox. Pastikan password adalah "
+                    "password mailbox, bukan password cPanel. "
+                    "QA_MAILBOX_MASTER_PASSWORD tidak mengubah password mailbox lama."
+                ) from exc
+            raise MailboxError(
+                f"IMAP connection/authentication failed: {type(exc).__name__}"
+            ) from exc
+        except OSError as exc:
             raise MailboxError(
                 f"IMAP connection/authentication failed: {type(exc).__name__}"
             ) from exc
@@ -268,7 +278,15 @@ class ImapOTPReader:
                         match = OTP_PATTERN.search(_message_text(message))
                         if match:
                             return match.group(1)
-            except (imaplib.IMAP4.error, OSError) as exc:
+            except imaplib.IMAP4.error as exc:
+                if _is_authentication_error(str(exc)):
+                    raise MailboxError(
+                        "IMAP menolak kredensial mailbox. Pastikan password adalah "
+                        "password mailbox, bukan password cPanel. "
+                        "QA_MAILBOX_MASTER_PASSWORD tidak mengubah password mailbox lama."
+                    ) from exc
+                raise MailboxError(f"IMAP access failed: {type(exc).__name__}") from exc
+            except OSError as exc:
                 raise MailboxError(f"IMAP access failed: {type(exc).__name__}") from exc
             time.sleep(poll_interval)
         raise MailboxError("No matching fresh OTP arrived before timeout.")
@@ -337,3 +355,17 @@ def _message_text(message) -> str:
                 payload.decode(message.get_content_charset() or "utf-8", errors="replace")
             )
     return "\n".join(chunks)
+
+
+def _is_authentication_error(message: str) -> bool:
+    normalized = message.casefold()
+    return any(
+        marker in normalized
+        for marker in (
+            "authenticationfailed",
+            "authentication failed",
+            "login failed",
+            "invalid credentials",
+            "not authenticated",
+        )
+    )

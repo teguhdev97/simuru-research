@@ -257,7 +257,7 @@ class CpanelBrowserSession:
         return None, diagnostics
 
     def session_status(self) -> dict[str, Any]:
-        """Auto-check all open cPanel tabs and verify actual UAPI access."""
+        """Check open cPanel tabs and verify actual UAPI access."""
         try:
             with self._attached_browser() as (_, _, pages):
                 page, diagnostics = self._find_authenticated_page(pages)

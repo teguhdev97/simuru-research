@@ -4,14 +4,15 @@
 
 ## 1. Project summary
 
-**SIMURU Research** is a local-first Windows research and QA workspace built with Python 3.12, Streamlit, Playwright, FastAPI, and SQLite. It combines local synthetic QA workflows, team metadata, read-only SIMURU API research, cPanel mailbox administration for a domain the operator controls, and visual configuration for authorized website QA.
+**SIMURU Research** is a local-first Windows research and QA workspace built with Python 3.12, Streamlit, Playwright, FastAPI, and SQLite. It combines local synthetic QA workflows, read-only SIMURU API research, and cPanel mailbox administration for a domain the operator controls.
 
 - Repository: https://github.com/teguhdev97/simuru-research
 - Primary runtime: Windows 10/11, local laptop
 - Dashboard: Streamlit (app.py)
+- Dashboard layout: shared breadcrumb and card frame; responsive icon-only sidebar on tablet/mobile
 - Package manager: uv
 - Persistence: SQLite plus local JSON configuration
-- Browser automation: Playwright Chromium over local CDP for cPanel; separate headless Playwright for read-only form inspection
+- Browser automation: Playwright Chromium over local CDP for cPanel
 - Current working branch: feat/five-mailbox-local-qa
 - Python requirement: 3.12+
 
@@ -20,20 +21,16 @@
 1. Provide a local dashboard for research and QA operations.
 2. Keep secrets, browser sessions, databases, and generated credentials on the operator's machine.
 3. Support cPanel mailbox administration only for domains the operator owns or is authorized to administer.
-4. Make website QA configuration visual rather than requiring manual JSON edits.
-5. Keep external website testing limited to owned systems or explicitly authorized environments.
-6. Make the repository understandable to human contributors and other AI coding agents.
+4. Make the repository understandable to human contributors and other AI coding agents.
 
 ## 3. Current dashboard areas
 
 | Tab | Responsibility |
 |---|---|
-| Overview | Team metadata counts and latest QA run |
-| Team Accounts | Metadata registry for existing team-managed accounts |
+| Overview | Active domain email count and latest QA run |
 | Sandbox Batch | Synthetic local test identities and bounded concurrency |
-| Mailbox Manager | Open local Chromium, manually authenticate to cPanel, inspect UAPI session, create exactly five mailboxes per batch |
-| Website Automation | Visual website profiles, read-only form inspection, and authorized five-identity email registration fallback |
-| Registration QA | End-to-end local registration/email/SMS/login tests using local fixtures |
+| List email | Browse domain mailboxes, read inboxes, and manage the five-mailbox QA flow |
+| Registration QA | Create five domain mailboxes, then run local registration/login checks with two workers |
 | Run History & Export | Review persisted QA results and export CSV |
 | SIMURU API | Read-only API research |
 
@@ -41,24 +38,23 @@
 
 - app.py: Streamlit dashboard and UI orchestration.
 - src/simuru_research/config/settings.py: environment-based application settings.
-- src/simuru_research/config/website_profiles.py: validation and local persistence for website profiles.
-- src/simuru_research/engine/form_inspector.py: read-only Playwright inspection of visible form controls and suggested CSS selectors.
 - src/simuru_research/engine/registration_qa.py: local registration QA runner.
 - src/simuru_research/providers/cpanel_browser.py: public facade preserving the existing cPanel manager API.
 - src/simuru_research/providers/cpanel_browser_session.py: persistent Chromium lifecycle, CDP attach, cPanel session checks, URL validation, and close/logout behavior.
 - src/simuru_research/providers/cpanel_mailboxes.py: cPanel UAPI normalization, listing, creation, credential import, and password reset.
-- src/simuru_research/providers/cpanel_website_qa.py: authorized website navigation, Google OAuth handoff, and email registration QA.
 - src/simuru_research/ui/mailbox_tab.py: mailbox settings and cPanel connection controls.
 - src/simuru_research/ui/mailbox_workflow.py: mailbox workflow composition.
 - src/simuru_research/ui/mailbox_session.py: cPanel status and existing-mailbox actions.
 - src/simuru_research/ui/mailbox_batch.py: mailbox batch results, password updates, and credential import.
 - src/simuru_research/ui/mailbox_otp.py: mailbox connectivity and OTP controls.
-- src/simuru_research/ui/mailbox_registration_qa.py: owned-website registration QA controls.
 - src/simuru_research/providers/mailbox.py: mailbox provider abstractions/errors.
 - src/simuru_research/security/auth_qa.py: local auth/OTP test service.
 - src/simuru_research/storage/database.py: SQLite repository.
-- src/simuru_research/storage/team_accounts.py: team metadata registry.
 - tests/: automated unit and integration tests.
+
+The shared page frame and responsive sidebar are rendered from `app.py` and
+`src/simuru_research/ui/tabs.py`. Sandbox job-count and concurrency controls live on
+the Sandbox Batch page rather than in the navigation rail.
 
 ## 5. cPanel Mailbox Manager — current behavior
 
@@ -66,7 +62,7 @@ The current browser-session integration does **not** require a cPanel API token.
 
 1. Streamlit asks the local manager to start Chromium with a persistent local profile and remote debugging endpoint (default port 9222).
 2. The operator logs into their own cPanel manually.
-3. Each Streamlit interaction/fragment run attaches to Chromium through a fresh Playwright client over CDP.
+3. Each explicit Streamlit interaction attaches to Chromium through a fresh Playwright client over CDP.
 4. The manager locates open tabs for the configured cPanel host.
 5. It calls cPanel UAPI with same-origin browser credentials.
 6. Mailbox creation uses Email::add_pop; mailbox listing uses Email::list_pops.
@@ -75,7 +71,7 @@ The current browser-session integration does **not** require a cPanel API token.
 
 ### Current diagnostic change
 
-The Mailbox Manager shows a live cPanel session status panel. It checks all open cPanel tabs automatically every three seconds and reports:
+The Mailbox management view shows a cPanel session status panel. It checks all open cPanel tabs when the view is rendered and reports:
 - whether a cPanel tab was found;
 - whether the URL contains a cPanel session prefix (the session ID is redacted in diagnostics);
 - HTTP status and redirect behavior of the UAPI request;
@@ -93,33 +89,11 @@ The dashboard should never print a raw cpsess value, cookies, passwords, API tok
 - cPanel API responses may encode status as a number or string; normalize before comparison.
 - Do not expose raw cPanel session identifiers in errors, screenshots, logs, or generated docs.
 
-## 6. Website Automation — current behavior
+## 6. Removed dashboard surfaces
 
-The visual Website Automation tab stores website profiles locally in data/website_profiles.json. It supports:
-- profile name and base URL;
-- registration path;
-- authentication method;
-- CSS selectors for common form fields;
-- Google OAuth QA flag;
-- explicit ownership/authorization acknowledgement.
-
-The form inspector opens the supplied page in a separate headless Playwright browser
-and reads visible form controls. It suggests selectors and identifies Google sign-in
-controls without submitting or logging in.
-
-The execution path is separate and is available only after the operator confirms
-ownership or explicit authorization for the target website. If Google OAuth is not
-detected, is not configured for the five test identities, or its button cannot be
-clicked, the Mailbox Manager can fill and submit the target site's email/password
-registration form sequentially for exactly five generated QA mailboxes. It uses
-reviewed/detected CSS selectors and generates an independent temporary website
-password for each identity. The results and credentials are available as a local
-CSV download and are not saved in SQLite.
-
-A successful browser click is recorded as `submitted`, not as a confirmed account.
-Site-specific email verification, OTP, CAPTCHA, approval, or other challenges must
-still be completed and verified through the target application's supported flow.
-Never bypass those controls or use this workflow on a site without authorization.
+The Website Automation and Team Accounts pages and their supporting implementation
+have been removed. Mailbox UI is limited to domain inbox access, mailbox management,
+and OTP-related mailbox diagnostics. Existing local data files are not modified.
 
 ## 7. Local development
 
@@ -193,8 +167,9 @@ Before making changes:
 
 The current Mailbox Manager creates exactly five new mailboxes, then lists all
 mailboxes again and marks the batch complete only when all five addresses are found.
-The dashboard status fragment polls cPanel UAPI every three seconds, so manual login
-in Chromium is reflected without requiring a manual page refresh.
+The Mailbox management view checks cPanel UAPI during normal Streamlit page renders.
+There is no background polling; after manual login in Chromium, use a dashboard
+interaction or navigate back to the view to recheck the session.
 
 Only after a five-of-five verified batch does the UI reveal **Google OAuth · Prepare
 Test Users**. This panel:

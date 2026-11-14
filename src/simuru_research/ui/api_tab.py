@@ -4,6 +4,7 @@ import pandas as pd
 import streamlit as st
 
 from simuru_research.providers.simuru_client import SimuruAPIError, SimuruClient
+from simuru_research.ui.pagination import render_paginated_dataframe
 
 
 def render_api_tab(settings) -> None:
@@ -127,10 +128,10 @@ def render_api_tab(settings) -> None:
                         payload = service_prices["payload"]
                         price_rows = payload.get("data", [])
                         if price_rows:
-                            st.dataframe(
+                            render_paginated_dataframe(
                                 pd.DataFrame(price_rows),
-                                use_container_width=True,
-                                hide_index=True,
+                                key="simuru_service_prices_pagination",
+                                alt="Service prices by country",
                             )
                             if payload.get("ranking_note"):
                                 st.caption(payload["ranking_note"])
@@ -230,10 +231,10 @@ def render_api_tab(settings) -> None:
                                     "simuru_filtered_pricelist"
                                 )
                                 if filtered:
-                                    st.dataframe(
+                                    render_paginated_dataframe(
                                         pd.DataFrame(filtered.get("data", [])),
-                                        use_container_width=True,
-                                        hide_index=True,
+                                        key="simuru_filtered_pricelist_pagination",
+                                        alt="Filtered SIMURU pricelist",
                                     )
 
             st.divider()
@@ -268,10 +269,10 @@ def render_api_tab(settings) -> None:
                         file_name="simuru-pricelist.csv",
                         mime="text/csv",
                     )
-                    st.dataframe(
+                    render_paginated_dataframe(
                         pd.DataFrame(full_rows).head(100),
-                        use_container_width=True,
-                        hide_index=True,
+                        key="simuru_full_pricelist_pagination",
+                        alt="First 100 rows of the complete pricelist",
                     )
                     st.caption(
                         "Preview limited to the first 100 rows; "
@@ -316,8 +317,8 @@ def render_api_tab(settings) -> None:
                         }
                     )
                 if insight_rows:
-                    st.dataframe(
+                    render_paginated_dataframe(
                         pd.DataFrame(insight_rows),
-                        use_container_width=True,
-                        hide_index=True,
+                        key="simuru_insights_pagination",
+                        alt="Country service insights",
                     )

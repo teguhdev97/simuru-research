@@ -8,7 +8,7 @@ from typing import Any
 from playwright.sync_api import Page
 
 from simuru_research.providers.cpanel_browser_session import CpanelBrowserSession
-from simuru_research.providers.mailbox import MailboxError
+from simuru_research.providers.mailbox import LOCAL_PART_PATTERN, MailboxError
 
 
 class CpanelMailboxOperations(CpanelBrowserSession):
@@ -67,18 +67,37 @@ class CpanelMailboxOperations(CpanelBrowserSession):
 
     def list_domain_mailboxes(self) -> list[str]:
         """Return mailbox addresses on the configured QA domain after UAPI authentication."""
+        addresses = self.list_domain_email_addresses()
+        return [
+            email
+            for email in addresses
+            if email.split("@", 1)[0].startswith(self.prefix)
+        ]
+
+    def list_domain_email_addresses(self) -> list[str]:
+        """Return all valid mailbox addresses on the configured domain."""
         with self._attached_browser() as (_, _, pages):
             page, _ = self._find_authenticated_page(pages)
             if page is None:
                 raise MailboxError("Sesi cPanel belum terverifikasi.")
             rows = self._list_mailboxes(page)
-            return sorted({
-                str(row.get("email", "")).strip().lower()
-                for row in rows
-                if isinstance(row, dict)
-                and str(row.get("email", "")).strip().lower().endswith("@" + self.domain)
-                and str(row.get("email", "")).strip().lower().split("@", 1)[0].startswith(self.prefix)  # noqa: E501
-            })
+            addresses: list[str] = []
+            seen: set[str] = set()
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                email = str(row.get("email", "")).strip().lower()
+                if email.count("@") != 1:
+                    continue
+                local_part, domain = email.split("@")
+                if (
+                    domain == self.domain.lower()
+                    and LOCAL_PART_PATTERN.fullmatch(local_part)
+                    and email not in seen
+                ):
+                    addresses.append(email)
+                    seen.add(email)
+            return addresses
 
     @staticmethod
     def _generate_mailbox_password() -> str:
@@ -90,8 +109,8 @@ class CpanelMailboxOperations(CpanelBrowserSession):
                 and any(c.isdigit() for c in value) and any(c in "!@#$%_-" for c in value)):
                 return value
 
-    def create_five(self) -> list[dict[str, str]]:
-        """Create exactly five unique mailboxes with a configured or generated QA password."""
+    def create_five(self, *, save_credentials: bool = True) -> list[dict[str, str]]:
+        """Create five unique mailboxes and optionally persist their passwords."""
         if self.mailbox_password and len(self.mailbox_password) < 12:
             raise MailboxError(
                 "Password seragam minimal 12 karakter. Kosongkan field untuk memakai password acak unik."  # noqa: E501
@@ -206,6 +225,9 @@ class CpanelMailboxOperations(CpanelBrowserSession):
                         )
             for record in created:
                 if record.get("status") != "created":
+                    continue
+                if not save_credentials:
+                    record["credential_storage"] = "not_saved"
                     continue
                 try:
                     self.credential_vault.save(record["email"], record["password"])

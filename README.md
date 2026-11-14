@@ -28,11 +28,12 @@ Business), not consumer/personal Instagram accounts. A Meta app test user is not
 new Instagram account. This repository does not claim to create or connect Instagram
 accounts.
 
-## New in v0.5.0: Local Registration QA
+## New in v0.5.0: Registration QA
 
-The **Registration QA** tab now runs up to 100 end-to-end test registrations for
-the team's own local application. The default batch is 40 jobs with 3 concurrent
-workers.
+The **Registration QA** page creates five new cPanel mailboxes on the configured
+domain, then runs the local registration/login checks for those addresses with
+two concurrent workers. Sign in to cPanel first from **List email → Mailbox
+management**, then return to Registration QA and check the cPanel session.
 
 Each job executes:
 
@@ -46,13 +47,15 @@ Each job executes:
 
 ### Test-only data boundaries
 
-- Email addresses use the reserved example.test domain.
+- Registration QA is limited to the configured QA email domain.
 - Phone numbers use the fictional +1-202-555-0100 through +1-202-555-0199 range.
 - Passwords are randomly generated in memory and stored only as salted password hashes.
 - OTPs are held temporarily in a local QA outbox and cleared when consumed.
 - Access tokens are stored as SHA-256 hashes in SQLite.
 - The QA API rejects non-loopback clients; run it on 127.0.0.1.
-- No real email, SMS, SIMURU rental, Temp-Mail, Temp-Number, or Instagram request is made by this local QA flow.
+- Creating the five mailboxes is a real cPanel action. The registration email/SMS
+  verification steps still use the local test outbox; no OTP email or SMS is sent.
+- No SIMURU rental, Temp-Mail, Temp-Number, or Instagram request is made by this local QA flow.
 
 These test users can authenticate against the **local QA API only**. They are not
 Instagram accounts and cannot log in to Instagram.
@@ -128,57 +131,28 @@ runner creates unique email addresses and usernames itself.
 
 ## Streamlit dashboard
 
+The dashboard uses a responsive Sneat/shadcn-inspired sidebar, a fixed full-width
+app bar, breadcrumbs, and a rounded card frame with a soft shadow on each page. On
+tablet and phone widths, the sidebar collapses to icon-only navigation and reveals
+labels on hover or focus; the app logo follows the same behavior. The main content
+scrolls independently from the sidebar. In
+**List email**, the mailbox page shows domain email accounts (6 per page), the
+selected account's inbox, and the opened message in three panes. Verify the cPanel session before
+refreshing the email list. `QA_MAILBOX_MASTER_PASSWORD` is tried automatically once
+when an account is selected; later inbox refreshes are manual. Passwords entered as
+temporary alternatives remain in the active app session and are not saved to Windows
+Credential Manager. Newly created addresses from the latest app flow appear first.
+Numbered pagination is shared with the latest-run results table. Long addresses are
+shortened in the list and can be expanded per row. IMAP access is read-only.
+
 The dashboard includes:
 
-1. **Overview** — team account counts and latest QA run.
-2. **Team Accounts** — add, import, inspect, and export metadata for existing team-owned accounts.
-3. **Sandbox Batch** — synthetic identity/concurrency checks.
-4. **Mailbox Manager** — opens a local persistent cPanel browser session, creates exactly five mailboxes on the configured owned domain, and then exposes Google OAuth or authorized email-registration QA.
-5. **Website Automation** — visually configure and save website QA profiles locally; no JSON editing required.
-6. **Registration QA** — run 40 local registration, email verification, SMS verification, and login workflows.
-7. **Run History & Export** — inspect previous runs and download CSV.
-8. **SIMURU API** — browse account profile, balance, services, countries, prices, and country insights.
-
-## Website Automation (visual configuration)
-
-The **Website Automation** tab provides a form-based profile manager and a read-only
-Playwright form inspector. Enter an authorized registration page URL and click
-**Inspect Website & Auto-detect Selectors** to discover visible inputs, labels,
-placeholders, submit controls, and Google sign-in buttons. Suggested CSS selectors are
-copied into the profile form for review and can be edited before saving.
-
-For a website you own or are explicitly authorized to test, the Mailbox Manager also
-provides a bounded email-registration fallback. When Google OAuth is not detected or
-the Google control cannot be clicked, SIMURU can fill and submit the registration form
-sequentially with the five generated QA mailbox addresses. It generates a separate
-temporary website password for each identity and offers a local CSV export. Passwords
-are not stored in SQLite. A `submitted` result means the form submit action completed;
-the target application's email verification, OTP, CAPTCHA, and account-creation
-result still need to be checked. This feature does not bypass those checks.
-
-Save, select, preview, or delete website profiles in the dashboard. Profiles are stored
-locally in `data/website_profiles.json`, which is covered by `.gitignore`. Remote sites
-must use HTTPS. The operator must explicitly confirm ownership or authorization before
-starting the five-identity email flow.
-
-OAuth client credentials and secrets are not collected by this profile form. For an
-application you own, configure its OAuth client and redirect URI separately in Google
-Auth Platform and keep client secrets in local secret storage. Google sign-in, consent,
-CAPTCHA, and MFA remain manual-supervised.
-
-## Team Account Registry
-
-The registry records existing Instagram accounts the team owns or is explicitly
-authorized to manage. It stores usernames and owner/team metadata only.
-
-| Account type | Registry behavior | Official Instagram API |
-| --- | --- | --- |
-| Personal | Metadata registry only | Not supported |
-| Creator | Pending Meta OAuth setup | Eligible, subject to permissions and app access |
-| Business | Pending Meta OAuth setup | Eligible, subject to permissions and app access |
-
-Changing a Personal account to Professional can affect privacy and account features.
-Only the account owner should make that change after reviewing Meta's guidance.
+1. **Overview** — active domain email count and latest QA run.
+2. **Sandbox Batch** — synthetic identity/concurrency checks.
+3. **List email** — lists domain mailboxes, displays the selected inbox and message content, and provides mailbox management for the five-mailbox QA flow.
+4. **Registration QA** — create five domain mailboxes, then run local registration and login checks with two workers.
+5. **Run History & Export** — inspect previous runs and download CSV.
+6. **SIMURU API** — browse account profile, balance, services, countries, prices, and country insights.
 
 ## SIMURU API integration
 
@@ -263,10 +237,9 @@ Open the local URL printed by Streamlit, usually:
 http://localhost:8501
 ~~~
 
-Select **Registration QA**, keep the default 40 jobs and 3 workers, then click
-**Run registration QA batch**. The batch creates local QA users, verifies both
-channels through the local test outbox, tests login/session validation, and stores
-the results in SQLite.
+Select **Registration QA**, confirm the cPanel session, then click **Create 5
+mailboxes and run registration QA**. The flow creates five domain mailboxes,
+tests registration/login with two local workers, and stores the results in SQLite.
 
 ## Run tests and lint
 
@@ -298,15 +271,13 @@ simuru-research/
 │       │   ├── cpanel_browser.py
 │       │   ├── cpanel_browser_session.py
 │       │   ├── cpanel_mailboxes.py
-│       │   ├── cpanel_website_qa.py
 │       │   ├── sandbox.py
 │       │   └── simuru_client.py
 │       ├── security/
 │       │   └── auth_qa.py
 │       ├── storage/
 │       │   ├── database.py
-│       │   ├── exporter.py
-│       │   └── team_accounts.py
+│       │   └── exporter.py
 │       └── ui/
 │           ├── api_tab.py
 │           ├── history_tab.py
@@ -315,18 +286,15 @@ simuru-research/
 │           ├── mailbox_session.py
 │           ├── mailbox_batch.py
 │           ├── mailbox_otp.py
-│           ├── mailbox_registration_qa.py
 │           ├── overview_tab.py
 │           ├── registration_qa_tab.py
 │           ├── sandbox_tab.py
 │           ├── tabs.py
-│           ├── team_tab.py
-│           └── website_tab.py
+│           └── pagination.py
 └── tests/
     ├── test_registration_qa.py
     ├── test_runner.py
-    ├── test_simuru_client.py
-    └── test_team_accounts.py
+    └── test_simuru_client.py
 ~~~
 
 
@@ -341,8 +309,8 @@ The Mailbox Manager can create exactly five real mailboxes per run on a
 domain you control. It uses the local cPanel browser session and UAPI, assigns distinct
 random mailbox passwords when no shared QA password is configured, and stores those
 mailbox passwords in Windows Credential Manager. The five addresses and non-secret
-operation results are shown in the dashboard. Website registration is a separate,
-explicitly authorized QA action described in the Website Automation section.
+operation results are shown in the dashboard. Website Automation and Team Accounts are
+not part of the current dashboard.
 
 See [docs/local-mailbox-qa.md](docs/local-mailbox-qa.md) for cPanel API token setup,
 Windows configuration, mailbox naming, IMAP settings, and sender-allowlisted OTP
@@ -424,8 +392,9 @@ uv run simuru-browser-qa --url https://staging.example.org/register --headless
 ~~~
 
 See [docs/browser-form-qa.md](docs/browser-form-qa.md) for details. The existing
-**Registration QA** runner remains the tool for end-to-end synthetic registration,
-email/SMS verification, and login tests against the local QA API.
+**Registration QA** runner uses verified domain mailbox addresses for local
+registration and login checks. Its email/SMS codes still come from the local QA
+outbox; browser-form checks against an authorized staging site remain a separate flow.
 
 
 ## Google OAuth QA test-user preparation

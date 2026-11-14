@@ -6,6 +6,7 @@ import streamlit as st
 from simuru_research.providers.cpanel_browser import CpanelBrowserMailboxManager
 from simuru_research.providers.mailbox import MailboxError
 from simuru_research.security.mailbox_vault import MailboxCredentialVault
+from simuru_research.ui.pagination import render_paginated_dataframe
 
 
 def render_mailbox_batch(
@@ -35,10 +36,10 @@ def render_mailbox_batch(
             col for col in ["email", "status", "credential_storage", "error"]
             if col in mailbox_frame.columns
         ]
-        st.dataframe(
+        render_paginated_dataframe(
             mailbox_frame[valid_cols],
-            use_container_width=True,
-            hide_index=True,
+            key="mailbox_batch_results_pagination",
+            alt="Latest mailbox batch results",
         )
         st.download_button(
             "Download 5 mailbox credentials (CSV)",
@@ -49,7 +50,7 @@ def render_mailbox_batch(
         if mailbox_password_input:
             if st.button(
                 "Set same password for these 5 mailboxes",
-                use_container_width=True,
+                width="stretch",
             ):
                 try:
                     with st.spinner("Memperbarui password mailbox di cPanel..."):

@@ -149,3 +149,36 @@ def test_imap_reader_requires_vault_credential_when_not_injected():
     reader = ImapOTPReader(config, credential_vault=EmptyVault())
     with pytest.raises(MailboxError, match="credential"):
         reader.check_connection("qa-test-01@teguhharits.com")
+
+
+def test_imap_connection_error_explains_master_password_does_not_update_old_mailboxes(
+    monkeypatch,
+):
+    import imaplib
+    from dataclasses import replace
+
+    from simuru_research.providers.mailbox import ImapOTPReader
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def login(self, email, password):
+            raise imaplib.IMAP4.error(
+                b"[AUTHENTICATIONFAILED] Authentication failed."
+            )
+
+    monkeypatch.setattr("imaplib.IMAP4_SSL", FakeClient)
+    config = replace(
+        settings(),
+        mailbox_passwords={"qa-test-01@teguhharits.com": "invalid-test-password"},
+    )
+
+    with pytest.raises(MailboxError, match="tidak mengubah"):
+        ImapOTPReader(config).check_connection("qa-test-01@teguhharits.com")

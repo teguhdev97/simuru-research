@@ -65,7 +65,7 @@ def render_existing_mailboxes(
             if st.button(
                 "Set same password for selected existing mailboxes",
                 key="reset_selected_existing_mailboxes",
-                use_container_width=True,
+                width="stretch",
             ):
                 try:
                     with st.spinner(
@@ -112,7 +112,7 @@ def render_mailbox_creation(
     create_btn = st.button(
         "Create 5 New Emails",
         type="primary",
-        use_container_width=True,
+        width="stretch",
         key="create_five_mailboxes",
         disabled=not session_ready,
     )
@@ -128,6 +128,8 @@ def render_mailbox_creation(
                 row.get("status") == "created" for row in mailbox_rows
             )
             if successful == 5 and len(mailbox_rows) == 5:
+                st.session_state["domain_email_refresh_available"] = True
+                st.session_state["domain_email_refresh_pending"] = True
                 st.session_state["mailbox_workflow_alert"] = {
                     "kind": "success",
                     "message": (
@@ -135,6 +137,9 @@ def render_mailbox_creation(
                     ),
                 }
             else:
+                if successful:
+                    st.session_state["domain_email_refresh_available"] = True
+                    st.session_state["domain_email_refresh_pending"] = True
                 st.session_state["mailbox_workflow_alert"] = {
                     "kind": "error",
                     "message": (

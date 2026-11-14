@@ -108,18 +108,21 @@ class SQLiteRepository:
                 (passed, failed, datetime.now(UTC).isoformat(), run_id),
             )
 
-    def list_runs(self, *, limit: int = 50) -> list[dict[str, object]]:
+    def list_runs(self, *, limit: int | None = 50) -> list[dict[str, object]]:
+        query = """
+            SELECT run_id, total_jobs, max_workers, status, passed, failed,
+                   started_at, finished_at
+            FROM runs
+            ORDER BY started_at DESC
+        """
         with self._connection() as connection:
-            rows = connection.execute(
-                """
-                SELECT run_id, total_jobs, max_workers, status, passed, failed,
-                       started_at, finished_at
-                FROM runs
-                ORDER BY started_at DESC
-                LIMIT ?
-                """,
-                (limit,),
-            ).fetchall()
+            if limit is None:
+                rows = connection.execute(query).fetchall()
+            else:
+                rows = connection.execute(
+                    f"{query} LIMIT ?",
+                    (limit,),
+                ).fetchall()
         return [dict(row) for row in rows]
 
     def list_results(self, run_id: str) -> list[dict[str, object]]:

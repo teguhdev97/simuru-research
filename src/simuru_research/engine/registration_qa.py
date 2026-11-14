@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import secrets
 import time
+from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import replace
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -24,11 +26,27 @@ class LocalRegistrationQARunner:
         self.auth_service = auth_service
         self.identity_provider = SandboxProvider()
 
-    def run_batch(self, *, total_jobs: int = 40, max_workers: int = 3) -> BatchSummary:
+    def run_batch(
+        self,
+        *,
+        total_jobs: int = 40,
+        max_workers: int = 3,
+        email_addresses: Sequence[str] | None = None,
+    ) -> BatchSummary:
         if not 1 <= total_jobs <= 100:
             raise ValueError("total_jobs must be between 1 and 100.")
         if not 1 <= max_workers <= 10:
             raise ValueError("max_workers must be between 1 and 10.")
+        normalized_emails = None
+        if email_addresses is not None:
+            if len(email_addresses) != total_jobs:
+                raise ValueError("email_addresses must contain one address per job.")
+            normalized_emails = [
+                self.auth_service.normalize_email(email)
+                for email in email_addresses
+            ]
+            if len(set(normalized_emails)) != total_jobs:
+                raise ValueError("email_addresses must be unique.")
 
         run_id = uuid4().hex
         self.repository.create_run(
@@ -43,7 +61,12 @@ class LocalRegistrationQARunner:
             thread_name_prefix="registration-qa",
         ) as executor:
             futures = {
-                executor.submit(self._run_one, run_id, index): index
+                executor.submit(
+                    self._run_one,
+                    run_id,
+                    index,
+                    normalized_emails[index - 1] if normalized_emails else None,
+                ): index
                 for index in range(1, total_jobs + 1)
             }
             for future in as_completed(futures):
@@ -52,11 +75,16 @@ class LocalRegistrationQARunner:
                     result = future.result()
                 except Exception as exc:
                     identity = self.identity_provider.create_identity(index, run_id)
+                    email = (
+                        normalized_emails[index - 1]
+                        if normalized_emails
+                        else identity.email
+                    )
                     result = JobResult(
                         run_id=run_id,
                         job_index=index,
                         username=identity.username,
-                        email=identity.email,
+                        email=email,
                         phone=identity.phone,
                         status="failed",
                         duration_ms=0.0,
@@ -81,9 +109,16 @@ class LocalRegistrationQARunner:
             results=tuple(results),
         )
 
-    def _run_one(self, run_id: str, job_index: int) -> JobResult:
+    def _run_one(
+        self,
+        run_id: str,
+        job_index: int,
+        email_address: str | None = None,
+    ) -> JobResult:
         started = time.perf_counter()
         identity = self.identity_provider.create_identity(job_index, run_id)
+        if email_address is not None:
+            identity = replace(identity, email=email_address)
         password = "QA!" + secrets.token_urlsafe(18) + "Aa9"
 
         self.auth_service.register_user(

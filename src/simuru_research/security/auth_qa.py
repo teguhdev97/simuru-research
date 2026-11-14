@@ -12,7 +12,8 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-EMAIL_PATTERN = re.compile(r"^[a-zA-Z0-9._+-]+@example\.test$")
+EMAIL_LOCAL_PART_PATTERN = r"[a-zA-Z0-9._+-]+"
+EMAIL_DOMAIN_PATTERN = r"(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}"
 USERNAME_PATTERN = re.compile(r"^[A-Za-z0-9._]{3,30}$")
 PHONE_PATTERN = re.compile(r"^\+120255501\d{2}$")
 PASSWORD_ITERATIONS = 310_000
@@ -29,11 +30,24 @@ class LocalAuthQAService:
 
     Email and SMS codes are delivered to a local test outbox. No email/SMS provider,
     third-party account, Instagram endpoint, or external registration page is called.
-    The fictional example.test and 555-0100..0199 ranges are enforced deliberately.
+    Email addresses are restricted to the configured QA domain. SMS codes use
+    fictional 555-0100..0199 phone numbers.
     """
 
-    def __init__(self, database_path: str | Path) -> None:
+    def __init__(
+        self,
+        database_path: str | Path,
+        *,
+        email_domain: str = "example.test",
+    ) -> None:
         self.database_path = Path(database_path)
+        self.email_domain = email_domain.strip().lower()
+        if not re.fullmatch(EMAIL_DOMAIN_PATTERN, self.email_domain):
+            raise ValueError("email_domain must be a valid domain name.")
+        self._email_pattern = re.compile(
+            rf"^{EMAIL_LOCAL_PART_PATTERN}@{re.escape(self.email_domain)}$",
+            re.IGNORECASE,
+        )
         if str(self.database_path) != ":memory:":
             self.database_path.parent.mkdir(parents=True, exist_ok=True)
         self._initialize()
@@ -104,13 +118,11 @@ class LocalAuthQAService:
         password: str,
     ) -> str:
         clean_username = username.strip()
-        clean_email = email.strip().lower()
+        clean_email = self.normalize_email(email)
         clean_phone = phone.strip()
 
         if not USERNAME_PATTERN.fullmatch(clean_username):
             raise QAAuthError("Username must contain 3-30 letters, numbers, dots, or underscores.")
-        if not EMAIL_PATTERN.fullmatch(clean_email):
-            raise QAAuthError("Local QA email must use the reserved example.test domain.")
         if not PHONE_PATTERN.fullmatch(clean_phone):
             raise QAAuthError("Local QA phone must use the fictional +1-202-555-0100..0199 range.")
         if len(password) < 12:
@@ -299,6 +311,21 @@ class LocalAuthQAService:
         with self._connection() as connection:
             row = connection.execute("SELECT COUNT(*) AS total FROM qa_users").fetchone()
         return int(row["total"])
+
+    def normalize_email(self, email: str) -> str:
+        clean_email = email.strip().lower()
+        if not self._email_pattern.fullmatch(clean_email):
+            raise QAAuthError(
+                f"Local QA email must use the configured {self.email_domain} domain."
+            )
+        return clean_email
+
+    def delete_all_users(self) -> int:
+        """Permanently remove local QA users and their related outbox/session rows."""
+        with self._connection() as connection:
+            deleted = connection.execute("SELECT COUNT(*) FROM qa_users").fetchone()[0]
+            connection.execute("DELETE FROM qa_users")
+        return int(deleted)
 
 
 def _new_otp() -> str:
