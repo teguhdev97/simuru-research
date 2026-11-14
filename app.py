@@ -33,7 +33,7 @@ website_registration_repository = WebsiteRegistrationRepository(settings.databas
 st.set_page_config(page_title="Simuru Research", page_icon="🧪", layout="wide")
 inject_sneat_css()
 render_topbar()
-st.markdown('<div class="sneat-page-title">Analytics Dashboard</div><div class="sneat-breadcrumb">Home / Overview</div>', unsafe_allow_html=True)
+render_page_heading("Analytics Dashboard", "Dashboards")
 st.caption("Research workspace · Mailbox services · Website QA · Local persistence")
 
 with st.sidebar:
@@ -130,7 +130,10 @@ if st.session_state["current_page"] == "Website Registration":
                     "message": str(exc),
                 }
                 st.error("Inspection failed")
-                st.code(__import__("json").dumps(detail, indent=2, ensure_ascii=False), language="json")
+                st.code(
+                    __import__("json").dumps(detail, indent=2, ensure_ascii=False),
+                    language="json",
+                )
     inspection = st.session_state.get("website_registration_inspection")
     if inspection:
         st.markdown("#### Detected registration form")
@@ -144,7 +147,10 @@ if st.session_state["current_page"] == "Website Registration":
             use_container_width=True,
             hide_index=True,
         )
-        st.caption("Selector suggestions are inspection metadata only; no registration is submitted.")
+        st.caption(
+            "Selector suggestions are inspection metadata only; "
+            "no registration is submitted."
+        )
         suggested = inspection.get("suggested_selectors", {})
         st.json(suggested)
         target = str(st.session_state.get("website_registration_inspected_url", ""))
@@ -152,15 +158,25 @@ if st.session_state["current_page"] == "Website Registration":
             emails = st.text_area(
                 "QA email addresses (one per line)",
                 value="\n".join(mailbox_emails[:5]),
-                help="Use only mailbox addresses you control and that are approved for the staging environment.",
+                help=(
+                    "Use only mailbox addresses you control and that are "
+                    "approved for the staging environment."
+                ),
             )
             if st.button("Save QA test record", key="save_website_qa_record"):
-                clean_emails = sorted({item.strip().lower() for item in emails.splitlines() if item.strip()})
+                clean_emails = sorted(
+                    {item.strip().lower() for item in emails.splitlines() if item.strip()}
+                )
                 if not clean_emails:
                     st.error("Masukkan setidaknya satu alamat email QA yang Anda kontrol.")
                 else:
                     try:
-                        parsed_host = __import__("urllib.parse", fromlist=["urlparse"]).urlparse(target).hostname or ""
+                        parsed_host = (
+                            __import__("urllib.parse", fromlist=["urlparse"])
+                            .urlparse(target)
+                            .hostname
+                            or ""
+                        )
                         run_id = website_registration_repository.create_run(
                             target_url=target,
                             website_host=parsed_host,
@@ -189,7 +205,8 @@ if st.session_state["current_page"] == "Website Registration":
             '<div class="sneat-card" style="text-align:center;padding:2.5rem">'
             '<div style="font-size:2.8rem;color:#a1acb8">▤</div>'
             '<b>No registration tests yet</b><br>'
-            '<span style="color:#a1acb8">Inspect an authorized staging site to create your first record.</span>'
+            '<span style="color:#a1acb8">Inspect an authorized staging site '
+            'to create your first record.</span>'
             '</div>',
             unsafe_allow_html=True,
         )
@@ -212,7 +229,9 @@ if st.session_state["current_page"] == "Website Registration":
             "Open test registration details",
             [row["run_id"] for row in rows],
             format_func=lambda value: next(
-                f'{row["website_host"]} · {row["run_id"][:8]}' for row in rows if row["run_id"] == value
+                f'{row["website_host"]} · {row["run_id"][:8]}'
+                for row in rows
+                if row["run_id"] == value
             ),
         )
         if st.button("View details", key="open_website_registration_detail"):
@@ -262,7 +281,11 @@ elif st.session_state["current_page"] == "Overview":
     ):
         with col:
             render_kpi(label, value, foot)
-    st.markdown('<div class="sneat-card"><b>Performance overview</b><p style="color:#8592a3">Your research workspace at a glance.</p></div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="sneat-card"><b>Performance overview</b>'
+        '<p style="color:#8592a3">Your research workspace at a glance.</p></div>',
+        unsafe_allow_html=True,
+    )
     recent = repository.list_runs(limit=8)
     if recent:
         st.dataframe(pd.DataFrame(recent), use_container_width=True, hide_index=True)
@@ -270,17 +293,44 @@ elif st.session_state["current_page"] == "Overview":
         st.info("No QA runs yet.")
 elif st.session_state["current_page"] == "Sandbox Batch":
     render_page_heading("Sandbox Batch", "Testing")
-    st.info("Gunakan tab lama pada bagian Sandbox Batch untuk konfigurasi dan hasil. UI sidebar ini sedang menjadi entrypoint baru.")
+    st.subheader("Run synthetic QA batch")
+    st.write(
+        "Batch lokal untuk menguji antrean, concurrency, penyimpanan SQLite, "
+        "dan ekspor hasil. Data sintetis tidak membuat akun eksternal."
+    )
+    if st.button("Run sandbox batch", type="primary", use_container_width=True):
+        with st.spinner(
+            f"Running {total_jobs} synthetic jobs with {max_workers} workers..."
+        ):
+            summary = BatchRunner(repository).run_batch(
+                total_jobs=int(total_jobs), max_workers=int(max_workers)
+            )
+        st.success(
+            f"Run {summary.run_id[:8]} selesai: "
+            f"{summary.passed} passed · {summary.failed} failed."
+        )
 elif st.session_state["current_page"] == "Mailbox Manager":
     render_page_heading("Mailbox Manager", "Email")
-    st.info("Mailbox management tetap tersedia melalui alur CLI yang sudah ada pada rilis main.")
+    st.info(
+        "Mailbox provisioning pada branch main belum dihubungkan ke dashboard "
+        "ini. Kelola mailbox melalui flow cPanel yang tersedia pada instalasi Anda."
+    )
 elif st.session_state["current_page"] == "Team Accounts":
     render_page_heading("Team Accounts", "Workspace")
-    st.info("Team registry tersedia di penyimpanan lokal.")
+    counts = team_accounts.count_by_type()
+    st.columns(4)[0].metric("Total accounts", sum(counts.values()))
+    accounts = team_accounts.list_accounts()
+    if accounts:
+        st.dataframe(pd.DataFrame(accounts), use_container_width=True, hide_index=True)
+    else:
+        st.info("Belum ada team account yang tercatat.")
 elif st.session_state["current_page"] == "Run History":
     render_page_heading("Run History", "Reports")
     all_runs = repository.list_runs(limit=50)
-    st.dataframe(pd.DataFrame(all_runs), use_container_width=True, hide_index=True)
+    if all_runs:
+        st.dataframe(pd.DataFrame(all_runs), use_container_width=True, hide_index=True)
+    else:
+        st.info("Belum ada riwayat QA.")
 elif st.session_state["current_page"] == "SIMURU API":
     render_page_heading("SIMURU API Explorer", "Integrations")
     st.info("API Explorer tetap tersedia pada halaman tab lama selama migrasi.")
