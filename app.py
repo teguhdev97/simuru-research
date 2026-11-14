@@ -346,15 +346,12 @@ elif st.session_state["current_page"] == "SIMURU API":
     if not settings.simuru_api_key:
         st.warning("SIMURU_API_KEY belum diisi. Sandbox lokal tetap dapat digunakan.")
         st.code(
-            "SIMURU_BASE_URL=https://simuru.com/api\n"
+            "SIMURU_BASE_URL=https://simuru.com/api\\n"
             "SIMURU_API_KEY=your_api_key_here"
         )
     else:
-        account_tab, catalog_tab, insights_tab = st.tabs(
-            ["Account", "Services & Pricelist", "Country Insights"]
-        )
-
-        with account_tab:
+        st.markdown("**Account information**")
+        with st.container(border=True):
             st.write("Periksa profil akun dan saldo SIMURU.")
             if st.button("Refresh account information", key="simuru_account_refresh"):
                 try:
@@ -392,7 +389,8 @@ elif st.session_state["current_page"] == "SIMURU API":
                     }
                 )
 
-        with catalog_tab:
+        st.markdown("**Services & Pricelist**")
+        with st.container(border=True):
             st.write(
                 "Muat metadata layanan dan negara, lalu telusuri harga per layanan. "
                 "Full pricelist dapat berisi ribuan baris; hasilnya bisa diekspor ke CSV."
@@ -608,7 +606,8 @@ elif st.session_state["current_page"] == "SIMURU API":
                         "CSV contains all returned rows."
                     )
 
-        with insights_tab:
+        st.markdown("**Country Insights**")
+        with st.container(border=True):
             st.write(
                 "Ringkasan negara berdasarkan success rate layanan selama periode "
                 "yang disediakan oleh SIMURU."
