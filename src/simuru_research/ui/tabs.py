@@ -8,10 +8,12 @@ from simuru_research.ui.mailbox_tab import create_cpanel_manager, render_mailbox
 from simuru_research.ui.overview_tab import render_overview_tab
 from simuru_research.ui.registration_qa_tab import render_registration_qa_tab
 from simuru_research.ui.sandbox_tab import render_sandbox_tab
+from simuru_research.ui.website_registration_tab import render_website_registration_tab
 
 APP_PAGES = {
     "Sandbox Batch": ("Sandbox batch", ":material/science:"),
     "Registration QA": ("Registration QA", ":material/verified_user:"),
+    "Website Registration": ("Website Registration", ":material/language:"),
     "Run History & Export": ("Run history & export", ":material/history:"),
     "SIMURU API": ("SIMURU API", ":material/api:"),
 }
@@ -26,7 +28,6 @@ def _page_button(page: str, label: str, icon: str) -> None:
         label,
         key=f"navigate_{page.lower().replace(' ', '_')}",
         icon=icon,
-        help=label,
         type=(
             "primary"
             if st.session_state.get("current_page", "Overview") == page
@@ -60,6 +61,7 @@ def render_selected_page(
         "Mailbox": "List email",
         "Sandbox Batch": "Sandbox batch",
         "Registration QA": "Registration QA",
+        "Website Registration": "Website Registration",
         "Run History & Export": "Run history & export",
         "SIMURU API": "SIMURU API",
     }
@@ -103,6 +105,11 @@ def render_selected_page(
                 repository,
                 auth_qa_service,
                 create_cpanel_manager(),
+            )
+        elif selected_page == "Website Registration":
+            render_website_registration_tab(
+                settings.database_path,
+                auth_qa_service,
             )
         elif selected_page == "Run History & Export":
             render_history_tab(repository)
