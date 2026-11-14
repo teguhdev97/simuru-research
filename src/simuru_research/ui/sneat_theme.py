@@ -18,11 +18,22 @@ def inject_sneat_css() -> None:
           --sneat-shadow: 0 2px 6px rgba(67, 89, 113, .12);
         }
         .stApp { background: var(--sneat-bg); color: var(--sneat-text); }
-        [data-testid="stHeader"] { background: rgba(245,245,249,.92); }
+        [data-testid="stHeader"] {
+          position: sticky; top: 0; z-index: 1000;
+          background: rgba(245,245,249,.7); backdrop-filter: blur(14px);
+          -webkit-backdrop-filter: blur(14px);
+        }
+        [data-testid="stMainBlockContainer"] { padding-top: 6rem; padding-bottom:175px; }
         [data-testid="stSidebar"] {
           background: #fff; border-right: 1px solid var(--sneat-border);
         }
         [data-testid="stSidebar"] > div:first-child { padding: 1.1rem .8rem; }
+        [data-testid="stSidebar"] [data-testid="stSidebarCollapseButton"] {
+          position:absolute; top:1.05rem; right:-.8rem; z-index:1100;
+          width:2.5rem; height:2.5rem; border-radius:50%;
+          background:var(--sneat-primary); color:white;
+          box-shadow:0 3px 10px rgba(105,108,255,.28);
+        }
         [data-testid="stSidebar"] [data-testid="stButton"] button {
           border: 0; border-radius: .55rem; background: transparent;
           color: var(--sneat-text); text-align: left; justify-content: flex-start;
@@ -36,10 +47,18 @@ def inject_sneat_css() -> None:
           font-weight: 650;
         }
         .sneat-topbar {
-          background:#fff; border:1px solid var(--sneat-border);
-          box-shadow:var(--sneat-shadow); border-radius:.6rem;
-          padding:.9rem 1.2rem; margin:0 0 1.25rem 0;
+          position:fixed; top:1rem; left:calc(var(--sidebar-width, 16rem) + 2rem);
+          right:2rem; z-index:900;
+          background:rgba(255,255,255,.7); border:1px solid rgba(231,231,255,.7);
+          box-shadow:var(--sneat-shadow); border-radius:.75rem;
+          padding:.85rem 1.2rem;
           display:flex; align-items:center; justify-content:space-between;
+          backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
+          animation:sneat-bar-enter .35s ease both;
+        }
+        @keyframes sneat-bar-enter {
+          from { opacity:0; transform:translateY(-8px); }
+          to { opacity:1; transform:translateY(0); }
         }
         .sneat-brand { font-size:1.45rem; font-weight:750; color:#435971; letter-spacing:-.04em; }
         .sneat-brand span { color:var(--sneat-primary); }
@@ -57,8 +76,11 @@ def inject_sneat_css() -> None:
         .sneat-kpi-value { color:#435971; font-size:1.65rem; font-weight:700; margin-top:.2rem; }
         .sneat-kpi-foot { color:#71dd37; font-size:.78rem; margin-top:.15rem; }
         div[data-testid="stVerticalBlockBorderWrapper"] {
-          border-radius:.65rem; border-color:var(--sneat-border);
-          box-shadow:var(--sneat-shadow); background:#fff;
+          border-radius:1rem; border-color:var(--sneat-border);
+          box-shadow:0 4px 14px rgba(67,89,113,.10); background:#fff;
+        }
+        div[data-testid="stVerticalBlockBorderWrapper"] > div {
+          background:#fff; border-radius:inherit;
         }
         .stButton > button[kind="primary"], .stFormSubmitButton > button[kind="primary"] {
           background:var(--sneat-primary); border-color:var(--sneat-primary);
@@ -71,11 +93,19 @@ def inject_sneat_css() -> None:
         input, textarea, [data-baseweb="select"] > div {
           border-radius:.45rem !important;
         }
-        [data-testid="stDataFrame"] { border:1px solid var(--sneat-border); border-radius:.55rem; }
+        [data-testid="stDataFrame"] {
+          border:1px solid var(--sneat-border); border-radius:.55rem;
+          background:#fff;
+        }
+        .pagination-ellipsis {
+          display:inline-flex; min-height:2.35rem; align-items:center;
+          color:var(--sneat-muted); padding:0 .15rem;
+        }
         [data-testid="stAlert"] { border-radius:.55rem; }
         h1,h2,h3 { color:#435971; letter-spacing:-.025em; }
         @media (max-width: 768px) {
-          .sneat-topbar { padding:.7rem .85rem; }
+          .sneat-topbar { left:5rem; right:.75rem; top:.5rem; padding:.7rem .85rem; }
+          [data-testid="stMainBlockContainer"] { padding-top:5rem; }
           .sneat-page-title { font-size:1.2rem; }
           .sneat-card { padding:.85rem; }
         }

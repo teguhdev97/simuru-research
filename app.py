@@ -4,19 +4,18 @@ import pandas as pd
 import streamlit as st
 
 from simuru_research.config.settings import Settings
-from simuru_research.engine.registration_qa import LocalRegistrationQARunner
 from simuru_research.engine.runner import BatchRunner
 from simuru_research.engine.website_registration_qa import (
     WebsiteRegistrationQAError,
     inspect_registration_form,
-    validate_registration_target,
 )
 from simuru_research.providers.simuru_client import SimuruAPIError, SimuruClient
 from simuru_research.security.auth_qa import LocalAuthQAService
 from simuru_research.storage.database import SQLiteRepository
-from simuru_research.storage.exporter import results_to_csv
 from simuru_research.storage.team_accounts import TeamAccountRegistry
 from simuru_research.storage.website_registration import WebsiteRegistrationRepository
+from simuru_research.ui.cards import menu_card
+from simuru_research.ui.pagination import render_paginated_table
 from simuru_research.ui.sneat_theme import (
     inject_sneat_css,
     render_kpi,
@@ -33,29 +32,6 @@ website_registration_repository = WebsiteRegistrationRepository(settings.databas
 st.set_page_config(page_title="Simuru Research", page_icon="🧪", layout="wide")
 inject_sneat_css()
 render_topbar()
-render_page_heading("Analytics Dashboard", "Dashboards")
-st.caption("Research workspace · Mailbox services · Website QA · Local persistence")
-
-with st.sidebar:
-    st.subheader("Sandbox configuration")
-    total_jobs = st.number_input(
-        "Synthetic test identities",
-        min_value=1,
-        max_value=100,
-        value=min(settings.default_total_jobs, 100),
-        step=1,
-    )
-    max_workers = st.number_input(
-        "Concurrent workers",
-        min_value=1,
-        max_value=10,
-        value=min(settings.default_max_workers, 10),
-        step=1,
-        help="Bounded local workers. No browser sessions or external signups.",
-    )
-    st.divider()
-    st.caption("Registration QA uses local-only test identities and a local OTP outbox.")
-    st.caption("No Instagram signup, external OTP retrieval, or provider rental is performed.")
 
 if "current_page" not in st.session_state:
     st.session_state["current_page"] = "Overview"
@@ -65,42 +41,42 @@ with st.sidebar:
         '<div class="sneat-brand" style="padding:.3rem .7rem 1.2rem">✦ simuru</div>',
         unsafe_allow_html=True,
     )
-    st.caption("WORKSPACE")
+    st.caption("APPS & PAGES")
     nav_items = [
-        ("Overview", "⌂"),
-        ("Mailbox Manager", "✉"),
-        ("Website Registration", "＋"),
-        ("Sandbox Batch", "▦"),
-        ("Team Accounts", "♙"),
-        ("Run History", "◷"),
-        ("SIMURU API", "⌘"),
+        ("Overview", ":material/dashboard:"),
+        ("Mailbox Manager", ":material/mail:"),
+        ("Mail list", ":material/mark_email_read:"),
+        ("Website Registration", ":material/language:"),
+        ("Sandbox Batch", ":material/science:"),
+        ("Team Accounts", ":material/group:"),
+        ("Run History", ":material/history:"),
+        ("SIMURU API", ":material/api:"),
     ]
     for label, icon in nav_items:
         if st.button(
-            f"{icon}   {label}",
+            label,
+            icon=icon,
             key=f"nav_{label.lower().replace(' ', '_')}",
             type="primary" if st.session_state["current_page"] == label else "secondary",
-            use_container_width=True,
+            width="stretch",
         ):
             st.session_state["current_page"] = label
             st.rerun()
 
 if st.session_state["current_page"] == "Website Registration":
     render_page_heading("Website Registration", "Testing / Create New Account")
-    st.markdown(
-        '<div class="sneat-card"><b>Authorized Website QA</b><br>'
-        '<span style="color:#8592a3">Inspect a local or allowlisted staging registration page. '
-        'CAPTCHA and consent controls remain manual.</span></div>',
-        unsafe_allow_html=True,
-    )
-    target_url = st.text_input(
-        "Website registration URL",
-        placeholder="https://staging.your-domain.test/register",
-        key="website_registration_target_url",
-    )
-    allow_confirm = st.checkbox(
-        "Saya mengonfirmasi domain ini milik saya atau saya memiliki izin tertulis untuk QA."
-    )
+    with menu_card(
+        "Authorized website QA",
+        "Inspect the registration page. Submission and site challenges remain manual.",
+    ):
+        target_url = st.text_input(
+            "Website registration URL",
+            value="https://santrikoding.com/register",
+            key="website_registration_target_url",
+        )
+        allow_confirm = st.checkbox(
+            "Saya mengonfirmasi domain ini milik saya atau saya memiliki izin tertulis untuk QA."
+        )
     mailbox_emails = [
         str(row["email"])
         for row in auth_qa_service.list_users(limit=500)
@@ -125,34 +101,36 @@ if st.session_state["current_page"] == "Website Registration":
                     f"dan {len(inspection.get('buttons', []))} tombol ditemukan."
                 )
             except (WebsiteRegistrationQAError, RuntimeError, ValueError) as exc:
-                detail = {
-                    "type": type(exc).__name__,
-                    "message": str(exc),
-                }
-                st.error("Inspection failed")
-                st.code(
-                    __import__("json").dumps(detail, indent=2, ensure_ascii=False),
-                    language="json",
-                )
+                st.error(f"Inspection failed: {exc}")
     inspection = st.session_state.get("website_registration_inspection")
     if inspection:
-        st.markdown("#### Detected registration form")
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Form", "Found" if inspection.get("formFound") else "Not found")
-        m2.metric("Inputs", len(inspection.get("inputs", [])))
-        m3.metric("Buttons", len(inspection.get("buttons", [])))
-        m4.metric("Challenge", "Manual" if inspection.get("challengeDetected") else "Not detected")
-        st.dataframe(
-            pd.DataFrame(inspection.get("inputs", [])),
-            use_container_width=True,
-            hide_index=True,
-        )
-        st.caption(
-            "Selector suggestions are inspection metadata only; "
-            "no registration is submitted."
-        )
+        with menu_card(
+            "Detected registration form",
+            "Inspection results only. No registration was submitted.",
+        ):
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Form", "Found" if inspection.get("formFound") else "Not found")
+            m2.metric("Inputs", len(inspection.get("inputs", [])))
+            m3.metric("Buttons", len(inspection.get("buttons", [])))
+            m4.metric(
+                "Challenge",
+                "Manual" if inspection.get("challengeDetected") else "Not detected",
+            )
+            render_paginated_table(
+                pd.DataFrame(inspection.get("inputs", [])), key="website_inspected_inputs"
+            )
         suggested = inspection.get("suggested_selectors", {})
-        st.json(suggested)
+        if suggested:
+            with menu_card("Suggested selectors", "Selector hints for manual QA"):
+                render_paginated_table(
+                    pd.DataFrame(
+                        [
+                            {"Field": field, "Selector": selector}
+                            for field, selector in suggested.items()
+                        ]
+                    ),
+                    key="website_suggested_selectors",
+                )
         target = str(st.session_state.get("website_registration_inspected_url", ""))
         if allow_confirm and target:
             emails = st.text_area(
@@ -163,7 +141,7 @@ if st.session_state["current_page"] == "Website Registration":
                     "approved for the staging environment."
                 ),
             )
-            if st.button("Save QA test record", key="save_website_qa_record"):
+            if st.button("Save inspection record", key="save_website_qa_record"):
                 clean_emails = sorted(
                     {item.strip().lower() for item in emails.splitlines() if item.strip()}
                 )
@@ -185,21 +163,13 @@ if st.session_state["current_page"] == "Website Registration":
                         st.session_state["selected_website_registration_run"] = run_id
                         st.success("QA inspection record saved.")
                     except Exception as exc:
-                        st.error(__import__("json").dumps({
-                            "type": type(exc).__name__,
-                            "message": str(exc),
-                        }, indent=2, ensure_ascii=False))
+                        st.error(f"Could not save QA record: {exc}")
 
     st.divider()
     st.markdown("#### Website QA history")
-    page_size = 8
-    page_key = "website_registration_page"
     total = website_registration_repository.count_runs()
-    total_pages = max(1, (total + page_size - 1) // page_size)
-    current_page = min(int(st.session_state.get(page_key, 1)), total_pages)
-    rows = website_registration_repository.list_runs(
-        limit=page_size, offset=(current_page - 1) * page_size
-    )
+    rows = website_registration_repository.list_runs(limit=max(1, total), offset=0)
+    selected_ids = []
     if not rows:
         st.markdown(
             '<div class="sneat-card" style="text-align:center;padding:2.5rem">'
@@ -211,7 +181,7 @@ if st.session_state["current_page"] == "Website Registration":
             unsafe_allow_html=True,
         )
     else:
-        st.dataframe(
+        render_paginated_table(
             pd.DataFrame([
                 {
                     "Test Registration Web": row["website_host"],
@@ -222,49 +192,38 @@ if st.session_state["current_page"] == "Website Registration":
                 }
                 for row in rows
             ]),
-            use_container_width=True,
-            hide_index=True,
+            key="website_registration_history",
         )
-        selected_id = st.selectbox(
+        selected_ids = st.multiselect(
             "Open test registration details",
             [row["run_id"] for row in rows],
+            default=[row["run_id"] for row in rows[:3]],
             format_func=lambda value: next(
                 f'{row["website_host"]} · {row["run_id"][:8]}'
                 for row in rows
                 if row["run_id"] == value
             ),
+            key="website_registration_detail_runs",
         )
-        if st.button("View details", key="open_website_registration_detail"):
-            st.session_state["selected_website_registration_run"] = selected_id
-        prev_col, page_col, next_col = st.columns([1, 2, 1])
-        with prev_col:
-            if st.button("← Previous", disabled=current_page <= 1):
-                st.session_state[page_key] = current_page - 1
-                st.rerun()
-        with page_col:
-            st.caption(f"Page {current_page} of {total_pages} · {total} records")
-        with next_col:
-            if st.button("Next →", disabled=current_page >= total_pages):
-                st.session_state[page_key] = current_page + 1
-                st.rerun()
-    detail_id = st.session_state.get("selected_website_registration_run")
-    if detail_id:
+    for detail_id in selected_ids:
         detail = website_registration_repository.get_run_detail(str(detail_id))
         if detail:
-            with st.expander("Registration detail", expanded=True):
+            with st.expander(f'Registration detail · {detail["website_host"]}', expanded=True):
                 st.write(f'**Website:** {detail["target_url"]}')
                 st.write(f'**Status:** {detail["status"]}')
                 st.write("**Emails used:**")
-                st.dataframe(
+                render_paginated_table(
                     pd.DataFrame(detail.get("identities", [])),
-                    use_container_width=True,
-                    hide_index=True,
+                    key="website_registration_identities",
                 )
                 if detail.get("error"):
-                    st.code(
-                        __import__("json").dumps(detail["error"], indent=2, ensure_ascii=False),
-                        language="json",
+                    recorded_error = detail["error"]
+                    message = (
+                        recorded_error.get("message", "A recorded QA error occurred.")
+                        if isinstance(recorded_error, dict)
+                        else str(recorded_error)
                     )
+                    st.warning(message)
 elif st.session_state["current_page"] == "Overview":
     render_page_heading("Analytics Dashboard", "Dashboards")
     totals = team_accounts.count_by_type()
@@ -281,54 +240,90 @@ elif st.session_state["current_page"] == "Overview":
     ):
         with col:
             render_kpi(label, value, foot)
-    st.markdown(
-        '<div class="sneat-card"><b>Performance overview</b>'
-        '<p style="color:#8592a3">Your research workspace at a glance.</p></div>',
-        unsafe_allow_html=True,
-    )
+    overview_left, overview_right = st.columns([1, 2])
+    with overview_left:
+        with st.container(border=True):
+            st.subheader("Congratulations!")
+            st.caption("Research workspace overview")
+            st.image(
+                "https://demos.themeselection.com/sneat-bootstrap-html-admin-template/assets/img/illustrations/prize-light.png",
+                alt="Trophy illustration",
+                width=150,
+            )
+    with overview_right:
+        st.markdown(
+            '<div class="sneat-card"><b>Performance overview</b>'
+            '<p style="color:#8592a3">Your research workspace at a glance.</p></div>',
+            unsafe_allow_html=True,
+        )
     recent = repository.list_runs(limit=8)
     if recent:
-        st.dataframe(pd.DataFrame(recent), use_container_width=True, hide_index=True)
+        render_paginated_table(pd.DataFrame(recent), key="overview_recent_runs")
     else:
         st.info("No QA runs yet.")
 elif st.session_state["current_page"] == "Sandbox Batch":
     render_page_heading("Sandbox Batch", "Testing")
-    st.subheader("Run synthetic QA batch")
-    st.write(
-        "Batch lokal untuk menguji antrean, concurrency, penyimpanan SQLite, "
-        "dan ekspor hasil. Data sintetis tidak membuat akun eksternal."
-    )
-    if st.button("Run sandbox batch", type="primary", use_container_width=True):
-        with st.spinner(
-            f"Running {total_jobs} synthetic jobs with {max_workers} workers..."
-        ):
-            summary = BatchRunner(repository).run_batch(
-                total_jobs=int(total_jobs), max_workers=int(max_workers)
-            )
-        st.success(
-            f"Run {summary.run_id[:8]} selesai: "
-            f"{summary.passed} passed · {summary.failed} failed."
+    with menu_card("Run synthetic QA batch", "Configure and launch a local test batch"):
+        total_jobs = st.number_input(
+            "Synthetic test identities", min_value=1, max_value=100,
+            value=min(settings.default_total_jobs, 100), step=1,
         )
+        max_workers = st.number_input(
+            "Concurrent workers", min_value=1, max_value=10,
+            value=min(settings.default_max_workers, 10), step=1,
+            help="Bounded local workers. No browser sessions or external signups.",
+        )
+        st.write(
+            "Batch lokal untuk menguji antrean, concurrency, penyimpanan SQLite, "
+            "dan ekspor hasil. Data sintetis tidak membuat akun eksternal."
+        )
+        if st.button("Run sandbox batch", type="primary", use_container_width=True):
+            with st.spinner(
+                f"Running {total_jobs} synthetic jobs with {max_workers} workers..."
+            ):
+                summary = BatchRunner(repository).run_batch(
+                    total_jobs=int(total_jobs), max_workers=int(max_workers)
+                )
+            st.success(
+                f"Run {summary.run_id[:8]} selesai: "
+                f"{summary.passed} passed · {summary.failed} failed."
+            )
 elif st.session_state["current_page"] == "Mailbox Manager":
     render_page_heading("Mailbox Manager", "Email")
     st.info(
         "Mailbox provisioning pada branch main belum dihubungkan ke dashboard "
         "ini. Kelola mailbox melalui flow cPanel yang tersedia pada instalasi Anda."
     )
+elif st.session_state["current_page"] == "Mail list":
+    render_page_heading("Mail list", "Email")
+    email_rows = [
+        {
+            "Email": row["email"],
+            "Verified": "Yes" if row.get("email_verified") else "No",
+            "Created at": row["created_at"],
+        }
+        for row in auth_qa_service.list_users(limit=10_000)
+        if row.get("email")
+    ]
+    if email_rows:
+        with menu_card("QA email addresses", "Addresses stored in the local QA database"):
+            render_paginated_table(pd.DataFrame(email_rows), key="mail_list")
+    else:
+        st.info("No email addresses are registered in the local QA database.")
 elif st.session_state["current_page"] == "Team Accounts":
     render_page_heading("Team Accounts", "Workspace")
     counts = team_accounts.count_by_type()
     st.columns(4)[0].metric("Total accounts", sum(counts.values()))
     accounts = team_accounts.list_accounts()
     if accounts:
-        st.dataframe(pd.DataFrame(accounts), use_container_width=True, hide_index=True)
+        render_paginated_table(pd.DataFrame(accounts), key="team_accounts")
     else:
         st.info("Belum ada team account yang tercatat.")
 elif st.session_state["current_page"] == "Run History":
     render_page_heading("Run History", "Reports")
     all_runs = repository.list_runs(limit=50)
     if all_runs:
-        st.dataframe(pd.DataFrame(all_runs), use_container_width=True, hide_index=True)
+        render_paginated_table(pd.DataFrame(all_runs), key="run_history")
     else:
         st.info("Belum ada riwayat QA.")
 elif st.session_state["current_page"] == "SIMURU API":
@@ -454,10 +449,8 @@ elif st.session_state["current_page"] == "SIMURU API":
                         payload = service_prices["payload"]
                         price_rows = payload.get("data", [])
                         if price_rows:
-                            st.dataframe(
-                                pd.DataFrame(price_rows),
-                                use_container_width=True,
-                                hide_index=True,
+                            render_paginated_table(
+                                pd.DataFrame(price_rows), key="simuru_service_prices"
                             )
                             if payload.get("ranking_note"):
                                 st.caption(payload["ranking_note"])
@@ -559,10 +552,9 @@ elif st.session_state["current_page"] == "SIMURU API":
                                     "simuru_filtered_pricelist"
                                 )
                                 if filtered:
-                                    st.dataframe(
+                                    render_paginated_table(
                                         pd.DataFrame(filtered.get("data", [])),
-                                        use_container_width=True,
-                                        hide_index=True,
+                                        key="simuru_filtered_pricelist",
                                     )
 
             st.divider()
@@ -596,10 +588,9 @@ elif st.session_state["current_page"] == "SIMURU API":
                         file_name="simuru-pricelist.csv",
                         mime="text/csv",
                     )
-                    st.dataframe(
+                    render_paginated_table(
                         pd.DataFrame(full_rows).head(100),
-                        use_container_width=True,
-                        hide_index=True,
+                        key="simuru_full_pricelist",
                     )
                     st.caption(
                         "Preview limited to the first 100 rows; "
@@ -645,8 +636,6 @@ elif st.session_state["current_page"] == "SIMURU API":
                         }
                     )
                 if insight_rows:
-                    st.dataframe(
-                        pd.DataFrame(insight_rows),
-                        use_container_width=True,
-                        hide_index=True,
+                    render_paginated_table(
+                        pd.DataFrame(insight_rows), key="simuru_country_insights"
                     )

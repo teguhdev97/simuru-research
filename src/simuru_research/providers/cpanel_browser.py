@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import secrets
-import socket
 import string
 import subprocess
 import time
@@ -178,8 +177,13 @@ class CpanelBrowserMailboxManager:
             probe = page.evaluate(
                 """async (domain) => {
                   const match = location.pathname.match(/^(\\/cpsess[^/]+)/);
-                  if (!match) return {ok: false, reason: 'cPanel session prefix not found', path: location.pathname};
-                  const endpoint = match[1] + '/execute/Email/list_pops?domain=' + encodeURIComponent(domain);
+                  if (!match) return {
+                    ok: false,
+                    reason: 'cPanel session prefix not found',
+                    path: location.pathname
+                  };
+                  const endpoint = match[1] +
+                    '/execute/Email/list_pops?domain=' + encodeURIComponent(domain);
                   const response = await fetch(endpoint, {credentials: 'same-origin'});
                   if (!response.ok) return {ok: false, status: response.status};
                   const payload = await response.json();
@@ -192,7 +196,10 @@ class CpanelBrowserMailboxManager:
                 "message": "Sesi cPanel aktif." if probe.get("ok") else "Login cPanel diperlukan.",
             }
         except Exception as exc:
-            return {"connected": False, "message": f"Sesi browser tidak tersedia: {type(exc).__name__}"}
+            return {
+                "connected": False,
+                "message": f"Sesi browser tidak tersedia: {type(exc).__name__}",
+            }
 
     def create_eight(self) -> list[dict[str, str]]:
         """Create exactly eight unique mailboxes using the authenticated cPanel session."""
@@ -207,7 +214,8 @@ class CpanelBrowserMailboxManager:
             """async (domain) => {
               const match = location.pathname.match(/^(\\/cpsess[^/]+)/);
               if (!match) throw new Error('cPanel session prefix not found in URL');
-              const endpoint = match[1] + '/execute/Email/list_pops?domain=' + encodeURIComponent(domain);
+              const endpoint = match[1] +
+                '/execute/Email/list_pops?domain=' + encodeURIComponent(domain);
               const response = await fetch(endpoint, {credentials: 'same-origin'});
               if (!response.ok) throw new Error('list_pops HTTP ' + response.status);
               return await response.json();
@@ -243,7 +251,8 @@ class CpanelBrowserMailboxManager:
                   });
                   const match = location.pathname.match(/^(\\/cpsess[^/]+)/);
                   if (!match) throw new Error('cPanel session prefix not found in URL');
-                  const response = await fetch(match[1] + '/execute/Email/add_pop?' + params.toString(), {
+                  const endpoint = match[1] + '/execute/Email/add_pop?' + params.toString();
+                  const response = await fetch(endpoint, {
                     method: 'GET',
                     credentials: 'same-origin'
                   });
@@ -269,7 +278,9 @@ class CpanelBrowserMailboxManager:
 
         verified = page.evaluate(
             """async (domain) => {
-              const response = await fetch('/execute/Email/list_pops?domain=' + encodeURIComponent(domain), {
+              const endpoint = '/execute/Email/list_pops?domain=' +
+                encodeURIComponent(domain);
+              const response = await fetch(endpoint, {
                 credentials: 'same-origin'
               });
               if (!response.ok) throw new Error('list_pops HTTP ' + response.status);

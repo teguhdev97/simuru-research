@@ -26,7 +26,11 @@ def main() -> None:
         default=1,
         help="Number of sequential sessions for --mode sessions (1-20)",
     )
-    parser.add_argument("--headless", action="store_true", help="Use headless Chrome (inspect only)")
+    parser.add_argument(
+        "--headless",
+        action="store_true",
+        help="Use headless Chrome (inspect only)",
+    )
     args = parser.parse_args()
 
     if args.mode == "inspect":
