@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from simuru_research.models import BatchSummary, JobResult
+from simuru_research.providers.mailpit import MailpitEmailProvider
 from simuru_research.providers.sandbox import SandboxProvider
 from simuru_research.security.auth_qa import LocalAuthQAService
 from simuru_research.storage.database import SQLiteRepository
@@ -19,9 +20,11 @@ class LocalRegistrationQARunner:
         self,
         repository: SQLiteRepository,
         auth_service: LocalAuthQAService,
+        email_provider: MailpitEmailProvider | None = None,
     ) -> None:
         self.repository = repository
         self.auth_service = auth_service
+        self.email_provider = email_provider
         self.identity_provider = SandboxProvider()
 
     def run_batch(self, *, total_jobs: int = 40, max_workers: int = 3) -> BatchSummary:
@@ -97,6 +100,20 @@ class LocalRegistrationQARunner:
             channel="email",
             destination=identity.email,
         )
+        if self.email_provider is not None:
+            self.email_provider.send_verification_code(
+                recipient=identity.email,
+                code=email_code,
+                run_id=run_id,
+                job_index=job_index,
+            )
+            received_code = self.email_provider.wait_for_verification_code(
+                recipient=identity.email,
+            )
+            if not secrets.compare_digest(received_code, email_code):
+                raise RuntimeError("The email OTP received from Mailpit did not match.")
+            email_code = received_code
+
         self.auth_service.verify_code(
             channel="email",
             destination=identity.email,

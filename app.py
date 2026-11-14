@@ -6,6 +6,7 @@ import streamlit as st
 from simuru_research.config.settings import Settings
 from simuru_research.engine.registration_qa import LocalRegistrationQARunner
 from simuru_research.engine.runner import BatchRunner
+from simuru_research.providers.mailpit import MailpitEmailProvider, MailpitError
 from simuru_research.providers.simuru_client import SimuruAPIError, SimuruClient
 from simuru_research.security.auth_qa import LocalAuthQAService
 from simuru_research.storage.database import SQLiteRepository
@@ -16,6 +17,15 @@ settings = Settings.from_env()
 repository = SQLiteRepository(settings.database_path)
 team_accounts = TeamAccountRegistry(settings.database_path)
 auth_qa_service = LocalAuthQAService(settings.database_path)
+mailpit_provider = MailpitEmailProvider(
+    smtp_host=settings.mailpit_smtp_host,
+    smtp_port=settings.mailpit_smtp_port,
+    api_url=settings.mailpit_api_url,
+    from_email=settings.mailpit_from_email,
+    timeout_seconds=settings.mailpit_timeout_seconds,
+    poll_timeout_seconds=settings.mailpit_poll_timeout_seconds,
+    poll_interval_seconds=settings.mailpit_poll_interval_seconds,
+)
 
 st.set_page_config(page_title="Simuru Research", page_icon="🧪", layout="wide")
 st.title("Simuru Research Lab")
@@ -41,7 +51,7 @@ with st.sidebar:
         help="Bounded local workers. No browser sessions or external signups.",
     )
     st.divider()
-    st.caption("Registration QA uses local-only test identities and a local OTP outbox.")
+    st.caption("Registration QA uses local-only test identities and Mailpit email capture.")
     st.caption("No Instagram signup, external OTP retrieval, or provider rental is performed.")
 
 overview_tab, team_tab, sandbox_tab, registration_qa_tab, history_tab, api_tab = st.tabs(
@@ -285,10 +295,42 @@ with registration_qa_tab:
         "email dan SMS, lalu melakukan login dan memvalidasi session."
     )
     st.warning(
-        "Ini adalah aplikasi QA lokal, bukan Instagram. Tidak ada request ke Instagram, "
-        "SIMURU number rental, Temp-Mail, Temp-Number, atau layanan pendaftaran pihak ketiga. "
-        "Gunakan hanya untuk menguji aplikasi yang dimiliki tim."
+        "Ini adalah aplikasi QA lokal milik tim, bukan Instagram. Mailpit menangkap "
+        "email verifikasi di laptop ini; SMS tetap menggunakan mock lokal. Tidak ada "
+        "email yang dikirim ke mailbox publik atau layanan pendaftaran pihak ketiga."
     )
+
+    email_provider_choice = st.radio(
+        "Email verification provider",
+        ["Mailpit SMTP", "Local outbox (offline fallback)"],
+        index=0,
+        horizontal=True,
+        key="registration_qa_email_provider",
+    )
+    if email_provider_choice == "Mailpit SMTP":
+        st.caption(
+            f"SMTP: {settings.mailpit_smtp_host}:{settings.mailpit_smtp_port} · "
+            f"Mailpit API: {settings.mailpit_api_url} · "
+            "QA recipients use the reserved example.test domain."
+        )
+        if st.button("Check Mailpit connection", key="check_mailpit_connection"):
+            try:
+                mailpit_info = mailpit_provider.check_connection()
+                st.success(
+                    "Mailpit connected"
+                    + (
+                        f" · version {mailpit_info.get('Version')}"
+                        if mailpit_info.get("Version")
+                        else ""
+                    )
+                )
+            except MailpitError as exc:
+                st.error(str(exc))
+    else:
+        st.info(
+            "Offline fallback: the email OTP is read from the local SQLite test outbox. "
+            "Use Mailpit SMTP to test actual email delivery through a local SMTP server."
+        )
 
     qa_user_count = auth_qa_service.count_users()
     q1, q2, q3 = st.columns(3)
@@ -318,8 +360,8 @@ with registration_qa_tab:
 
     st.caption(
         "Test fixtures use reserved addresses at example.test and fictional "
-        "555-0100..0199 phone numbers. Passwords are hashed; OTPs are cleared "
-        "from the local outbox after verification."
+        "555-0100..0199 phone numbers. Passwords are hashed; consumed OTPs are "
+        "cleared from the local outbox. SMS verification remains a local mock."
     )
     st.markdown(
         "**Satu job menjalankan:** register → email OTP → SMS OTP → login → "
@@ -337,9 +379,16 @@ with registration_qa_tab:
                 f"Running {qa_total_jobs} local registration flows "
                 f"with {qa_workers} workers..."
             ):
+                if email_provider_choice == "Mailpit SMTP":
+                    mailpit_provider.check_connection()
                 qa_summary = LocalRegistrationQARunner(
                     repository,
                     auth_qa_service,
+                    email_provider=(
+                        mailpit_provider
+                        if email_provider_choice == "Mailpit SMTP"
+                        else None
+                    ),
                 ).run_batch(
                     total_jobs=int(qa_total_jobs),
                     max_workers=int(qa_workers),
