@@ -33,3 +33,13 @@ htmlcov/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Browser and OAuth secrets
+credentials.json
+token.json
+token*.json
+.env.local
+.env.*.local
+
+# Streamlit local secrets
+.streamlit/secrets.toml
