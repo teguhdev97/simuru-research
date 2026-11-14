@@ -333,10 +333,6 @@ elif st.session_state["current_page"] == "Run History":
         st.info("Belum ada riwayat QA.")
 elif st.session_state["current_page"] == "SIMURU API":
     render_page_heading("SIMURU API Explorer", "Integrations")
-    st.info("API Explorer tetap tersedia pada halaman tab lama selama migrasi.")
-
-elif st.session_state["current_page"] == "SIMURU API":
-    render_page_heading("SIMURU API Explorer", "Integrations")
     st.subheader("SIMURU API Explorer")
     st.caption(
         "Base URL: https://simuru.com/api · Authentication: X-API-KEY header"
