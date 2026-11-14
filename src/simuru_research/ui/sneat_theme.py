@@ -43,7 +43,10 @@ def inject_sneat_css() -> None:
         }
         .sneat-brand { font-size:1.45rem; font-weight:750; color:#435971; letter-spacing:-.04em; }
         .sneat-brand span { color:var(--sneat-primary); }
-        .sneat-page-title { font-size:1.45rem; font-weight:650; color:#435971; margin:.15rem 0 .25rem; }
+         .sneat-page-title {
+          font-size:1.45rem; font-weight:650; color:#435971;
+          margin:.15rem 0 .25rem;
+        }
         .sneat-breadcrumb { color:var(--sneat-muted); font-size:.83rem; margin-bottom:1.1rem; }
         .sneat-card {
           background:#fff; border:1px solid var(--sneat-border);
@@ -87,7 +90,9 @@ def render_topbar() -> None:
         """
         <div class="sneat-topbar">
           <div class="sneat-brand"><span>✦</span> simuru</div>
-          <div style="color:#8592a3;font-size:.9rem">Research workspace&nbsp;&nbsp; · &nbsp;&nbsp;Local QA</div>
+          <div style="color:#8592a3;font-size:.9rem">
+            Research workspace&nbsp;&nbsp; · &nbsp;&nbsp;Local QA
+          </div>
         </div>
         """,
         unsafe_allow_html=True,
