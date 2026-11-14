@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from urllib.parse import urlparse
 
 
@@ -15,7 +16,7 @@ def validate_registration_target(url: str) -> str:
         raise WebsiteRegistrationQAError("URL tidak boleh berisi username atau password.")
     allowed_hosts = {
         host.strip().lower()
-        for host in __import__("os").getenv(
+        for host in os.getenv(
             "WEBSITE_QA_ALLOWED_HOSTS", "localhost,127.0.0.1"
         ).split(",")
         if host.strip()
@@ -35,7 +36,8 @@ def inspect_registration_form(url: str) -> dict[str, object]:
     """Inspect the allowlisted page without clicking submit or completing challenges."""
     target = validate_registration_target(url)
     try:
-        from playwright.sync_api import Error as PlaywrightError, sync_playwright
+        from playwright.sync_api import Error as PlaywrightError
+        from playwright.sync_api import sync_playwright
     except ImportError as exc:
         raise WebsiteRegistrationQAError(
             "Playwright belum tersedia. Jalankan uv sync lalu playwright install chromium."
